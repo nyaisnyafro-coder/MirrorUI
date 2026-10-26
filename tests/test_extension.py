@@ -72,6 +72,20 @@ def test_pick_clones_a_component(toolbar, server):
     expect(frame.locator('text=What we build')).to_be_visible()
 
 
+def test_pick_keeps_states_and_canvases(toolbar, server):
+    page = toolbar(f'{server}/tests/cases/interactive.html')
+    tool(page, 'Pick')
+    page.locator('#t').hover(position={'x': 300, 'y': 10})
+    page.keyboard.press('Enter')
+    modal = page.locator('mirrorui-root .modal')
+    expect(modal.locator('pre')).to_contain_text('---', timeout=60_000)
+    modal.locator('button', has_text='HTML').first.click()
+    html = modal.locator('pre').inner_text()
+    for needle in ('focus-visible:outline-solid', 'active:scale-95', 'hover:scale-110', 'data:image/png;base64,'):
+        assert needle in html, needle
+    assert '<canvas' not in html
+
+
 def test_clone_page_preview_height_is_stable(toolbar, server):
     page = toolbar(f'{server}/tests/cases/min-h-screen.html')
     tool(page, 'Clone page')

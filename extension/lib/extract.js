@@ -2,8 +2,10 @@
 // Classic script, no dependencies. Defines globalThis.MirrorUIExtract:
 //   freeze() / unfreeze()        stop animations and transitions so styles are read in their final state
 //   extract(selector)            walk the subtree and return the capture (below)
-//   hoverDiff(i)                 styles that changed under :hover, called while the runner forces :hover
-//                                on the element marked data-mui-hover="i" (needs DevTools protocol)
+//   hoverDiff(i)                 styles that changed under a forced state (:hover, :focus, :active), called
+//                                while the runner forces it on the element marked data-mui-hover="i"
+//                                (needs DevTools protocol)
+//   isolate(i) / unisolate()     show only the canvas marked data-mui-canvas="i", for the runner's screenshot
 //   hideOverlays(selector) / restoreOverlays()   keep fixed headers/cookie bars out of screenshots
 //   cleanup()                    remove every mark this script left in the page
 //   inlineSprites(svg), fontSources()            also used by the toolbar's Assets and Fonts tools
@@ -35,7 +37,8 @@
     'box-shadow', 'opacity', 'overflow-x', 'overflow-y', 'object-fit', 'cursor', 'list-style-type', 'visibility',
     'box-sizing', 'resize', 'field-sizing', 'justify-items', 'fill', 'stroke',
     'text-decoration-color', 'text-decoration-thickness', 'text-decoration-style', 'text-underline-offset',
-    'transform', '-webkit-line-clamp', 'text-overflow',
+    'transform', 'scale', 'rotate', 'translate', '-webkit-line-clamp', 'text-overflow',
+    'outline-style', 'outline-width', 'outline-color', 'outline-offset',
   ];
   const INHERITED = new Set([
     'color', 'font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing',
@@ -267,9 +270,11 @@
         else if (s[p] === contextDefault && has) k.splice(k.indexOf(p), 1);
       }
       const r = el.getBoundingClientRect();
+      // a rotated or scaled box's bounding rect isn't its size; its layout box is
+      const own = ['transform', 'scale', 'rotate'].some((p) => s[p] && s[p] !== 'none') && el.offsetWidth !== undefined;
       const n = {
         t: tag, i, a: attrsOf(el), s, k,
-        w: r.width, h: r.height,
+        w: own ? el.offsetWidth : r.width, h: own ? el.offsetHeight : r.height,
         cw: el.clientWidth - parseFloat(s['padding-left']) - parseFloat(s['padding-right']),
         ch: el.clientHeight - parseFloat(s['padding-top']) - parseFloat(s['padding-bottom']),
         fw: true, fh: true, c: [], pd: parentDisplay,
@@ -318,6 +323,14 @@
       if (tag === 'svg') {
         n.svg = inlineSprites(el).outerHTML;
         return n;
+      }
+      if (tag === 'canvas') {
+        // the drawing becomes an image in the clone: read here when we can, else photographed by the runner
+        // explicit size: a picture read back from the buffer has the buffer's (often 2×) resolution
+        n.fw = n.fh = false;
+        const snap = canvasPixels(el);
+        if (snap) n.snap = snap;
+        else if (r.width >= 1 && r.height >= 1) { el.setAttribute('data-mui-canvas', i); n.cv = true; }
       }
       const pb = pseudo(el, '::before', s, s.display);
       const pa = pseudo(el, '::after', s, s.display);
@@ -368,6 +381,39 @@
     }
   };
 
+  // A canvas's drawing as a data: URL, or null where it reads back blank: WebGL without preserveDrawingBuffer
+  // is cleared after each frame, and a canvas painted with cross-origin images refuses to be read.
+  const canvasPixels = (el) => {
+    try {
+      if (!el.width || !el.height) return null;
+      const probe = document.createElement('canvas');
+      probe.width = Math.min(el.width, 64);
+      probe.height = Math.min(el.height, 64);
+      const g = probe.getContext('2d', { willReadFrequently: true });
+      g.drawImage(el, 0, 0, probe.width, probe.height);
+      const px = g.getImageData(0, 0, probe.width, probe.height).data;
+      for (let k = 3; k < px.length; k += 4) if (px[k]) return el.toDataURL('image/png');
+    } catch { /* tainted */ }
+    return null;
+  };
+
+  // Everything but canvas i hidden, for a screenshot of the drawing alone (text over a WebGL hero is cloned
+  // as text; it mustn't be baked into the picture too). Returns the canvas box in document coordinates.
+  const isolate = (i) => {
+    const el = document.querySelector(`[data-mui-canvas="${i}"]`);
+    if (!el) return null;
+    let st = document.getElementById('mirrorui-isolate');
+    if (!st) {
+      st = document.createElement('style');
+      st.id = 'mirrorui-isolate';
+      document.documentElement.append(st);
+    }
+    st.textContent = `html *{visibility:hidden!important}[data-mui-canvas="${i}"]{visibility:visible!important}`;
+    const r = el.getBoundingClientRect();
+    return { x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height };
+  };
+  const unisolate = () => document.getElementById('mirrorui-isolate')?.remove();
+
   // Called while :hover is forced on element i. Returns {j: {prop: value}} for i and its descendants.
   const hoverDiff = (i) => {
     const el = state.els[i];
@@ -401,12 +447,14 @@
 
   const cleanup = () => {
     for (const e of document.querySelectorAll('[data-mui-hover]')) e.removeAttribute('data-mui-hover');
+    for (const e of document.querySelectorAll('[data-mui-canvas]')) e.removeAttribute('data-mui-canvas');
+    unisolate();
     restoreOverlays();
     unfreeze();
     state = { els: [], base: [] };
   };
 
   globalThis.MirrorUIExtract = {
-    freeze, unfreeze, extract, hoverDiff, hideOverlays, restoreOverlays, cleanup, inlineSprites, fontSources,
+    freeze, unfreeze, extract, hoverDiff, isolate, unisolate, hideOverlays, restoreOverlays, cleanup, inlineSprites, fontSources,
   };
 })();

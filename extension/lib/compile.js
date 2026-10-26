@@ -174,23 +174,63 @@
     return cls(prefix, space(value));
   };
 
-  // Computed transforms come as matrix(a, b, c, d, tx, ty) in px. A pure translation by half the element's
-  // own size is the centring idiom (-translate-x-1/2); other translations map to the spacing scale; anything
-  // with scale/rotate/skew stays an arbitrary transform.
+  // A translation by half or all of the element's own size is the centring idiom (-translate-x-1/2); other
+  // translations map to the spacing scale.
+  const translateAxis = (t, size, name) => {
+    if (Math.abs(t) < 0.25) return null;
+    for (const [k, f] of [['1/2', 0.5], ['full', 1]]) {
+      if (near(t, -size * f, 0.75)) return `-${name}-${k}`;
+      if (near(t, size * f, 0.75)) return `${name}-${k}`;
+    }
+    return cls(name, space(`${t}px`));
+  };
+  // scale-105, scale-[1.025]; rotate-3, -rotate-45, rotate-[7.5deg]
+  const scaleClass = (sx, sy) => {
+    const one = (v) => (Number.isInteger(Math.round(v * 1e4) / 100) ? String(Math.round(v * 100)) : `[${num(v)}]`);
+    if (near(sx, 1, 1e-3) && near(sy, 1, 1e-3)) return null;
+    return near(sx, sy, 1e-3) ? `scale-${one(sx)}` : `scale-x-${one(sx)} scale-y-${one(sy)}`;
+  };
+  const rotateClass = (deg) => {
+    const r = Math.round(deg * 100) / 100;
+    if (Math.abs(r) < 0.01) return null;
+    return Number.isInteger(r) ? cls('rotate', String(r)) : `rotate-[${num(r)}deg]`;
+  };
+
+  // Computed transforms come as matrix(a, b, c, d, tx, ty) in px. Without skew it splits into translate,
+  // rotate and scale, which is also the order Tailwind's own translate/rotate/scale utilities apply in;
+  // anything else stays an arbitrary transform.
   const transformClass = (v, n) => {
     if (v === 'none') return 'translate-none';
     const m = /^matrix\(([^)]+)\)$/.exec(v);
     const [a, b, c, d, tx, ty] = m ? m[1].split(',').map(parseFloat) : [];
-    if (!m || a !== 1 || b !== 0 || c !== 0 || d !== 1) return `[transform:${arb(v)}]`;
-    const axis = (t, size, name) => {
-      if (Math.abs(t) < 0.25) return null;
-      for (const [k, f] of [['1/2', 0.5], ['full', 1]]) {
-        if (near(t, -size * f, 0.75)) return `-${name}-${k}`;
-        if (near(t, size * f, 0.75)) return `${name}-${k}`;
+    if (!m || Math.abs(a * c + b * d) > 1e-3 || a * d - b * c <= 0) return `[transform:${arb(v)}]`;
+    const sx = Math.hypot(a, b), sy = Math.hypot(c, d);
+    return [translateAxis(tx, n.w, 'translate-x'), translateAxis(ty, n.h, 'translate-y'),
+      rotateClass(Math.atan2(b, a) * 180 / Math.PI), scaleClass(sx, sy)].filter(Boolean).join(' ') || 'translate-none';
+  };
+
+  // The individual transform properties (scale: 1.05, rotate: 3deg, translate: -50% 0), as Tailwind v4 writes them.
+  const individualTransform = (prop, v, n) => {
+    if (v === 'none') return `${prop}-none`;
+    const parts = v.trim().split(/\s+/);
+    if (prop === 'scale') {
+      const [x, y = x] = parts.map((p) => (p.endsWith('%') ? parseFloat(p) / 100 : parseFloat(p)));
+      return parts.length <= 2 && !Number.isNaN(x + y) ? scaleClass(x, y) || 'scale-100' : `[scale:${arb(v)}]`;
+    }
+    if (prop === 'rotate') {
+      const m = /^(-?[\d.]+)deg$/.exec(v);
+      return m ? rotateClass(+m[1]) || 'rotate-0' : `[rotate:${arb(v)}]`;
+    }
+    if (parts.length > 2) return `[translate:${arb(v)}]`;
+    const axis = (p, size, name) => {
+      if (p.endsWith('%')) {
+        const f = parseFloat(p) / 100;
+        const k = { 0.5: '1/2', 1: 'full' }[Math.abs(f)];
+        return f === 0 ? null : k ? cls(name, (f < 0 ? '-' : '') + k) : `${name}-[${p}]`;
       }
-      return cls(name, space(`${t}px`));
+      return translateAxis(parseFloat(p), size, name);
     };
-    return [axis(tx, n.w, 'translate-x'), axis(ty, n.h, 'translate-y')].filter(Boolean).join(' ') || 'translate-none';
+    return [axis(parts[0], n.w, 'translate-x'), axis(parts[1] || '0px', n.h, 'translate-y')].filter(Boolean).join(' ') || 'translate-none';
   };
 
   // Returns [simple, sides] for a single viewport:
@@ -243,6 +283,9 @@
     }
     if (has('z-index')) put('z-index', s['z-index'] === 'auto' ? 'z-auto' : cls('z', s['z-index']));
     if (has('transform') && !n.jt) put('transform', transformClass(s.transform, n));
+    for (const p of ['scale', 'rotate', 'translate']) {
+      if (has(p) && s[p] && !n.jt) put(p, individualTransform(p, s[p], n));
+    }
     if (has('overflow-x') || has('overflow-y')) {
       const x = s['overflow-x'], y = s['overflow-y'];
       out.overflow = [x === y ? `overflow-${x}` : `overflow-x-${x} overflow-y-${y}`,
@@ -359,7 +402,8 @@
       return ['2', '4', '8'].includes(num(p)) ? num(p) : `[${num(p)}px]`;
     };
     const borderNames = Object.fromEntries(TRBL.map(([k, v]) => [k, `border-${v}-width`]));
-    if (Object.values(borderNames).some((p) => has(p) || has(p.replace('width', 'style')))) {
+    // (a color alone counts too: that's what a hover or focus state usually changes)
+    if (Object.values(borderNames).some((p) => has(p) || has(p.replace('width', 'style')) || has(p.replace('width', 'color')))) {
       sides.border = Object.fromEntries(Object.entries(borderNames)
         .map(([k, p]) => [k, [bw(s[p], s[p.replace('width', 'style')]), !keep.has(p)]]));
       const visible = Object.keys(borderNames).filter((k) => sides.border[k][0] !== '0');
@@ -476,6 +520,17 @@
       put('background-repeat', { 'no-repeat': 'bg-no-repeat', repeat: 'bg-repeat', 'repeat-x': 'bg-repeat-x',
         'repeat-y': 'bg-repeat-y' }[s['background-repeat']] || 'bg-repeat');
     }
+    // outlines, only where one is drawn: outline-color follows the text color everywhere else
+    if (has('outline-style')) {
+      const v = s['outline-style'];
+      put('outline-style', v === 'none' ? 'outline-none' : v === 'solid' ? 'outline-solid' : `outline-${v}`);
+    }
+    if (s['outline-style'] && s['outline-style'] !== 'none') {
+      const w = px(s['outline-width']), o = px(s['outline-offset']);
+      if (has('outline-width')) put('outline-width', w !== null && Number.isInteger(w) ? `outline-${w}` : `outline-[${arb(s['outline-width'])}]`);
+      if (has('outline-color') && s['outline-color'] !== s.color) put('outline-color', theme.color('outline', s['outline-color']));
+      if (has('outline-offset')) put('outline-offset', o !== null && Number.isInteger(o) ? cls('outline-offset', String(o)) : `outline-offset-[${arb(s['outline-offset'])}]`);
+    }
     if (has('box-shadow')) put('box-shadow', s['box-shadow'] === 'none' ? 'shadow-none' : `shadow-[${arb(s['box-shadow'])}]`);
     if (has('opacity')) {
       const o = parseFloat(s.opacity);
@@ -505,6 +560,7 @@
       theme.addColor(s[p]);
     }
     if (n.ph) theme.addColor(n.ph);
+    if (props.has('outline-color') && s['outline-style'] && s['outline-style'] !== 'none') theme.addColor(s['outline-color']);
     if (props.has('text-decoration-color') && s['text-decoration-line'] && s['text-decoration-line'] !== 'none'
         && s['text-decoration-color'] !== s.color) theme.addColor(s['text-decoration-color']);
   };
@@ -516,6 +572,7 @@
   const BLOCKY = ['block', 'flex', 'grid', 'list-item', 'table', 'flow-root', 'none'];
 
   // Smallest viewport is the unprefixed base; the rest map to md:, lg:, xl: in order.
+  const BP_MIN = { 'md:': '48rem', 'lg:': '64rem', 'xl:': '80rem', '2xl:': '96rem' };
   const breakpoints = (viewports) => [''].concat(['md:', 'lg:', 'xl:', '2xl:'].slice(0, viewports.length - 1));
 
   const nodeProps = (nodes) => {
@@ -554,8 +611,8 @@
       const pprops = nodes[0][`_${which}`] = nodeProps(fakes);
       for (const f of fakes) collectColors(f, pprops, theme);
     }
-    for (const diff of hoverDiffsFor(nodes[0], ctx)) {
-      for (const p of COLOR_PROPS.concat(['fill', 'stroke'])) if (p in diff[1]) theme.addColor(diff[1][p]);
+    for (const diff of hoverDiffsFor(nodes[0], ctx).concat(ownStateDiffs(nodes[0], ctx))) {
+      for (const p of COLOR_PROPS.concat(['fill', 'stroke', 'outline-color'])) if (p in diff[1]) theme.addColor(diff[1][p]);
     }
     for (const g of aligned(nodes)[0]) collect(g, theme, ctx);
   };
@@ -564,6 +621,14 @@
   const hoverDiffsFor = (n, ctx) => Object.entries(ctx.hover)
     .filter(([, byNode]) => byNode[n.i])
     .map(([i, byNode]) => [+i, byNode[n.i]]);
+
+  // [[state, {prop: value}], ...]: what :focus, :focus-visible and :active change on n itself. The browser's
+  // own focus ring (outline-style: auto) isn't the page's design and stays out.
+  const ownStateDiffs = (n, ctx) => Object.entries(ctx.states || {}).flatMap(([state, byEl]) => {
+    const diff = { ...(byEl[n.i] || {})[n.i] };
+    if (diff['outline-style'] === 'auto') for (const p of Object.keys(diff)) if (p.startsWith('outline')) delete diff[p];
+    return Object.keys(diff).length ? [[state, diff]] : [];
+  });
 
   // seq: per-viewport [class, isDefault]. Returns classes with breakpoint prefixes, mobile-first.
   const layered = (seq, bps) => {
@@ -664,7 +729,7 @@
 
   // Classes for one non-viewport state (hover) of the widest viewport: only what the diff changes.
   const stateClasses = (n, parent, diff, vp, theme) => {
-    const fake = { ...n, s: { ...n.s, ...diff }, k: Object.keys(diff), fw: true, fh: true };
+    const fake = { ...n, s: { ...n.s, ...diff }, k: Object.keys(diff), fw: true, fh: true, ph: null };
     const [simple, sides] = mapNode(fake, parent, new Set(Object.keys(diff)), vp, theme);
     const out = Object.values(simple).filter(([, def]) => !def).flatMap(([c]) => words(c));
     for (const [group, byside] of Object.entries(sides)) {
@@ -699,7 +764,12 @@
       const variant = i === nodes[0].i ? 'hover:' : `group-hover${named(i)}:`;
       out.push(...stateClasses(nodes[last], parents[last], diff, viewports[last], theme).map((c) => variant + c));
     }
-    if (diffs.length && nodes[last].tr) out.push(...transitionClasses(nodes[last].tr));
+    // focus:, focus-visible:, active: on the element itself
+    const own = ownStateDiffs(nodes[0], ctx);
+    for (const [state, diff] of own) {
+      out.push(...stateClasses(nodes[last], parents[last], diff, viewports[last], theme).map((c) => `${state}:${c}`));
+    }
+    if ((diffs.length || own.length) && nodes[last].tr) out.push(...transitionClasses(nodes[last].tr));
     return out;
   };
 
@@ -759,6 +829,23 @@
       let svg = base.svg.replace(/^<svg([^>]*?)\sclass="[^"]*"/, '<svg$1').replace(/^<svg([^>]*?)\sstyle=""/, '<svg$1');
       if (classes) svg = svg.replace('<svg', `<svg class="${classes}"`);
       return { tag: 'svg', raw: svg, hint };
+    }
+    if (base.t === 'canvas') {
+      // a picture of the drawing stands in for the script that drew it; where it differs between widths,
+      // each breakpoint gets its own through <picture>
+      const snaps = nodes.map((n) => n.snap || null);
+      if (snaps.some(Boolean)) {
+        const img = { tag: 'img', cls: classes, attrs: { src: snaps[0] || snaps.find(Boolean), alt: '' }, kids: [], pretty: false, hint };
+        if (new Set(snaps.filter(Boolean)).size === 1) return img;
+        const sources = [];
+        snaps.forEach((src, i) => {
+          if (i && src && src !== snaps[i - 1]) {
+            // hidden: under display:contents a <source> would otherwise be a (flex) item of its own
+            sources.unshift({ tag: 'source', cls: 'hidden', kids: [], attrs: { media: `(min-width: ${BP_MIN[bps[i]]})`, srcset: src } });
+          }
+        });
+        return { tag: 'picture', cls: 'contents', attrs: {}, kids: sources.concat(img), pretty: true, hint };
+      }
     }
     const [groups, k2] = aligned(nodes);
     let kids = groups.map((g) => render(g, nodes.slice(0, k2), viewports, theme, bps, ctx));
@@ -993,7 +1080,16 @@
     // hovered elements whose hover restyles a descendant become Tailwind groups
     const groups = new Set(Object.entries(hover)
       .filter(([i, byNode]) => Object.keys(byNode).some((j) => j !== i)).map(([i]) => +i));
-    const ctx = { hover, groups, groupNames: null };
+    const ctx = { hover, states: captures[captures.length - 1].states || {}, groups, groupNames: null };
+    // canvas drawings photographed by the runner, onto their nodes (see render)
+    for (const c of captures) {
+      const visit = (n) => {
+        if (!n || 'text' in n) return;
+        if (n.t === 'canvas' && !n.snap && c.canvas && c.canvas[n.i]) n.snap = c.canvas[n.i];
+        (n.c || []).forEach(visit);
+      };
+      visit(c.root);
+    }
     // Unnamed groups fire for any hovered ancestor group, so nested groups get names. Names come from the
     // class or tag (not the index) so repeated items keep identical classes.
     const names = new Map();

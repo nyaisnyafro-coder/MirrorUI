@@ -55,22 +55,45 @@ async function fetchFonts(urls) {
 const hoverCandidates = (n) => (!n || 'text' in n ? []
   : (n.hv ? [n.i] : []).concat((n.c || []).flatMap(hoverCandidates)));
 
-// Force :hover on each candidate and record what it restyles (the element itself and its descendants).
-async function hoverPass(send, tabId, root) {
+const STATES = ['hover', 'focus', 'focus-visible', 'active'];
+
+// Force each state (:hover, :focus…) on each candidate and record what it restyles (the element itself and
+// its descendants): {state: {i: diff}}.
+async function statePass(send, tabId, root) {
   await send('DOM.enable');
   await send('CSS.enable');
   const { root: doc } = await send('DOM.getDocument', { depth: 0 });
-  const out = {};
+  const out = Object.fromEntries(STATES.map((s) => [s, {}]));
   for (const i of hoverCandidates(root)) {
     const { nodeId } = await send('DOM.querySelector', { nodeId: doc.nodeId, selector: `[data-mui-hover="${i}"]` });
     if (!nodeId) continue;
-    await send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: ['hover'] });
-    const diff = await run(tabId, (k) => MirrorUIExtract.hoverDiff(k), [i]);
-    await send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
-    if (diff && Object.keys(diff).length) out[i] = diff;
+    for (const state of STATES) {
+      await send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [state] });
+      const diff = await run(tabId, (k) => MirrorUIExtract.hoverDiff(k), [i]);
+      await send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [] });
+      if (diff && Object.keys(diff).length) out[state][i] = diff;
+    }
   }
   await send('CSS.disable');
   await send('DOM.disable');
+  return out;
+}
+
+const canvasNodes = (n) => (!n || 'text' in n ? []
+  : (n.cv ? [n.i] : []).concat((n.c || []).flatMap(canvasNodes)));
+
+// Canvases that can't be read back (WebGL, tainted) photographed alone: {i: data URL}.
+async function canvasShots(send, tabId, root) {
+  const out = {};
+  for (const i of canvasNodes(root).slice(0, 8)) {
+    const box = await run(tabId, (k) => MirrorUIExtract.isolate(k), [i]);
+    if (!box || box.width < 1 || box.height < 1 || box.width > 4000 || box.height > 4000) continue;
+    const x = Math.floor(box.x), y = Math.floor(box.y);
+    const clip = { x, y, width: Math.ceil(box.x + box.width) - x, height: Math.ceil(box.y + box.height) - y, scale: 1 };
+    const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip });
+    out[i] = `data:image/png;base64,${data}`;
+  }
+  await run(tabId, () => MirrorUIExtract.unisolate());
   return out;
 }
 
@@ -161,7 +184,9 @@ async function capture(tabId) {
       if (!data || data.error) throw new Error(data ? data.error : 'Could not read the element');
       if (width === widths[widths.length - 1]) {
         // hover and fonts don't depend on the width; the desktop pass collects them
-        data.hover = await hoverPass(send, tabId, data.root);
+        const { hover, ...states } = await statePass(send, tabId, data.root);
+        data.hover = hover;
+        data.states = states;
         data.fontSheets = await fetchSheets(data.fonts.sheets);
       }
       if (data.rect.width >= 1 && data.rect.height >= 1) {
@@ -172,6 +197,7 @@ async function capture(tabId) {
         const clip = { x, y, width: Math.ceil(data.rect.x + data.rect.width) - x,
           height: Math.ceil(data.rect.y + data.rect.height) - y, scale: 1 };
         const { data: png } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip });
+        data.canvas = await canvasShots(send, tabId, data.root);
         await run(tabId, () => MirrorUIExtract.restoreOverlays());
         shots[width] = `data:image/png;base64,${png}`;
       } else {

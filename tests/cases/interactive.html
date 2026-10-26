@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="_base.css">
+<!-- Focus and active states, transforms written with the individual scale/rotate properties, and canvases:
+     a 2D one (read back directly) and a WebGL one (cleared after each frame, so photographed). -->
+<style>
+  #t { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; padding: 24px; }
+  .btn { padding: 10px 18px; border: 0; border-radius: 8px; background: #4f46e5; color: #fff; font-size: 16px; }
+  .btn:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+  .btn:active { scale: 0.95; }
+  .field { padding: 8px; border: 1px solid #94a3b8; font-size: 16px; }
+  .field:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px #c7d2fe; }
+  .tilt { display: block; width: 80px; height: 80px; background: #10b981; rotate: 6deg; }
+  .tilt:hover { scale: 1.1; }
+  canvas { display: block; width: 160px; height: 90px; }
+</style>
+<div id="t">
+  <button class="btn">Save</button>
+  <input class="field" placeholder="Email">
+  <a class="tilt" href="#"></a>
+  <canvas id="c2d" width="320" height="180"></canvas>
+  <canvas id="cgl" width="160" height="90"></canvas>
+</div>
+<script>
+  const g = document.getElementById('c2d').getContext('2d');
+  g.fillStyle = '#0ea5e9'; g.fillRect(0, 0, 320, 180);
+  g.fillStyle = '#f43f5e'; g.beginPath(); g.arc(160, 90, 60, 0, Math.PI * 2); g.fill();
+  const gl = document.getElementById('cgl').getContext('webgl', { preserveDrawingBuffer: false });
+  gl.clearColor(0.55, 0.36, 0.96, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+</script>

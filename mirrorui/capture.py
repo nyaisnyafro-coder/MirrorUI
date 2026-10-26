@@ -42,23 +42,46 @@ def hover_candidates(node):
     return ([node['i']] if node.get('hv') else []) + [i for c in node.get('c', []) for i in hover_candidates(c)]
 
 
-async def hover_pass(page, root):
-    """Force :hover on each candidate through the DevTools protocol and record what it restyles."""
+STATES = ('hover', 'focus', 'focus-visible', 'active')
+
+
+async def state_pass(page, root):
+    """Force each state (:hover, :focus…) on each candidate through the DevTools protocol and record what it
+    restyles: {state: {i: diff}}."""
     cdp = await page.context.new_cdp_session(page)
     await cdp.send('DOM.enable')
     await cdp.send('CSS.enable')
     doc = await cdp.send('DOM.getDocument', {'depth': 0})
-    out = {}
+    out = {state: {} for state in STATES}
     for i in hover_candidates(root):
         found = await cdp.send('DOM.querySelector', {'nodeId': doc['root']['nodeId'], 'selector': f'[data-mui-hover="{i}"]'})
         if not found.get('nodeId'):
             continue
-        await cdp.send('CSS.forcePseudoState', {'nodeId': found['nodeId'], 'forcedPseudoClasses': ['hover']})
-        diff = await page.evaluate('i => MirrorUIExtract.hoverDiff(i)', i)
-        await cdp.send('CSS.forcePseudoState', {'nodeId': found['nodeId'], 'forcedPseudoClasses': []})
-        if diff:
-            out[str(i)] = diff
+        for state in STATES:
+            await cdp.send('CSS.forcePseudoState', {'nodeId': found['nodeId'], 'forcedPseudoClasses': [state]})
+            diff = await page.evaluate('i => MirrorUIExtract.hoverDiff(i)', i)
+            await cdp.send('CSS.forcePseudoState', {'nodeId': found['nodeId'], 'forcedPseudoClasses': []})
+            if diff:
+                out[state][str(i)] = diff
     await cdp.detach()
+    return out
+
+
+def canvas_nodes(node):
+    if 'text' in node:
+        return []
+    return ([node['i']] if node.get('cv') else []) + [i for c in node.get('c', []) for i in canvas_nodes(c)]
+
+
+async def canvas_shots(page, root, limit=8):
+    """Canvases that can't be read back (WebGL, tainted) photographed alone: {i: data URL}."""
+    out = {}
+    for i in canvas_nodes(root)[:limit]:
+        box = await page.evaluate('i => MirrorUIExtract.isolate(i)', i)
+        if box and 1 <= box['width'] <= 4000 and 1 <= box['height'] <= 4000:
+            png = await page.screenshot(clip=snap(box), full_page=True, animations='disabled')
+            out[str(i)] = 'data:image/png;base64,' + base64.b64encode(png).decode()
+    await page.evaluate('MirrorUIExtract.unisolate()')
     return out
 
 
@@ -156,7 +179,9 @@ async def capture_viewport(browser: Browser, url, selector, width, shot_path=Non
             raise CaptureError(data['error'])
         if widest:
             # hover and fonts don't change with the viewport; the desktop pass collects them
-            data['hover'] = await hover_pass(page, data['root'])
+            states = await state_pass(page, data['root'])
+            data['hover'] = states.pop('hover')
+            data['states'] = states
             data['fontSheets'] = await fetch_sheets(ctx, data['fonts']['sheets'], url)
         if shot_path and data['rect']['width'] >= 1 and data['rect']['height'] >= 1:
             # (a hidden or display:contents element has no box to photograph at this width)
@@ -164,6 +189,7 @@ async def capture_viewport(browser: Browser, url, selector, width, shot_path=Non
             await page.evaluate('s => MirrorUIExtract.hideOverlays(s)', selector)
             # a clip of the measured box, like the extension; element screenshots wait for "stable" boxes forever
             await page.screenshot(path=str(shot_path), clip=snap(data['rect']), full_page=True, animations='disabled')
+            data['canvas'] = await canvas_shots(page, data['root'])
         elif shot_path:
             shot_path.unlink(missing_ok=True)  # a stale one from an earlier run would be compared instead
         return data

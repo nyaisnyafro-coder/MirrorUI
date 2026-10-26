@@ -45,7 +45,7 @@
       actions: [button('Clone this page', { icon: 'clone', primary: true, onclick: () => capture(document.body) })],
       body: [
         h('p', { class: 'muted', text: 'Clones the whole page as one Tailwind HTML document and an Astro page component. Repeated blocks become loops, like with Pick.' }),
-        h('p', { class: 'muted small', text: 'Canvas and WebGL drawings, videos and JavaScript-driven animation can’t be cloned; their boxes stay empty. Scroll through the page first so lazy content is loaded.' }),
+        h('p', { class: 'muted small', text: 'Canvas and WebGL drawings become still pictures; videos and JavaScript-driven animation can’t be cloned. Scroll through the page first so lazy content is loaded.' }),
         await viewportSettings(),
       ],
     });
