@@ -3,6 +3,9 @@ driven like a user would (pages come from the local test server, nothing from th
 
     pytest -m extension
 """
+import re
+import zipfile
+
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
@@ -84,6 +87,38 @@ def test_pick_keeps_states_and_canvases(toolbar, server):
     for needle in ('focus-visible:outline-solid', 'active:scale-95', 'hover:scale-110', 'data:image/png;base64,'):
         assert needle in html, needle
     assert '<canvas' not in html
+
+
+def pick_zip(page, selector):
+    """Picks the element and downloads the result's ZIP: {name: bytes}."""
+    tool(page, 'Pick')
+    page.locator(selector).hover(position={'x': 5, 'y': 5})
+    page.keyboard.press('Enter')
+    modal = page.locator('mirrorui-root .modal')
+    expect(modal.locator('pre')).to_contain_text('---', timeout=60_000)
+    with page.expect_download() as download:
+        modal.locator('button', has_text='Download ZIP').click()
+    with zipfile.ZipFile(download.value.path()) as z:
+        return {name: z.read(name) for name in z.namelist()}
+
+
+def test_zip_is_an_astro_project_with_its_assets(toolbar, server):
+    page = toolbar(f'{server}/tests/cases/bg-url.html')
+    files = pick_zip(page, '#t')
+    assert {'index.html', 'src/components/Component.astro', 'src/styles/theme.css', 'README.md',
+            'public/clone-assets/bg-pattern.svg'} <= set(files)
+    assert files['public/clone-assets/bg-pattern.svg'].startswith(b'<svg')
+    astro, html = files['src/components/Component.astro'].decode(), files['index.html'].decode()
+    assert "url('/clone-assets/bg-pattern.svg')" in astro and 'bg\\_pattern' not in astro
+    assert "url('public/clone-assets/bg-pattern.svg')" in html
+
+    # canvases: their pictures become files too, one per breakpoint
+    page = toolbar(f'{server}/tests/cases/interactive.html')
+    files = pick_zip(page, '#t')
+    pngs = [n for n in files if n.endswith('.png')]
+    assert pngs and all(files[n].startswith(b'\x89PNG') for n in pngs)
+    # (tiny pictures may stay inline)
+    assert not re.search(r'data:image/png;base64,[\w+/=]{4096,}', files['src/components/Component.astro'].decode())
 
 
 def test_clone_page_preview_height_is_stable(toolbar, server):

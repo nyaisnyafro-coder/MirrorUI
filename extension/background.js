@@ -3,12 +3,13 @@
 // (chrome.debugger). It also fetches and downloads on the page's behalf, without the page's CORS limits.
 // The page is the user's own tab, so nothing is re-fetched from the site and logins just work.
 const TARGET = '[data-mirrorui-target]';
-const TOOLBAR_FILES = ['lib/extract.js', 'lib/compile.js', 'lib/stage.js', 'lib/zip.js', 'toolbar/styles.js', 'toolbar/ui.js',
+const TOOLBAR_FILES = ['lib/extract.js', 'lib/compile.js', 'lib/stage.js', 'lib/zip.js', 'lib/package.js', 'toolbar/styles.js', 'toolbar/ui.js',
   'toolbar/scan.js', 'toolbar/pick.js', 'toolbar/inspect.js', 'toolbar/design.js', 'toolbar/colors.js', 'toolbar/fonts.js',
   'toolbar/assets.js', 'toolbar/responsive.js', 'toolbar/capture.js', 'toolbar/edit.js', 'toolbar/swap.js',
   'toolbar/arrange.js', 'toolbar/main.js'];
 const DEFAULT_OPTIONS = { viewports: [375, 768, 1280] };
 const MAX_JOBS = 8;
+const MAX_ASSET = 25 * 1024 * 1024;
 const VIEWPORT_HEIGHT = 900;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -342,6 +343,19 @@ const HANDLERS = {
     return { ok: true };
   },
   'fetch-fonts': async (msg) => ({ files: await fetchFonts(msg.urls || []) }),
+  // images, videos and fonts for a project ZIP: {url: {base64, type}}; what fails or is too big is left out
+  'fetch-assets': async (msg) => {
+    const files = {};
+    await Promise.all((msg.urls || []).map(async (url) => {
+      try {
+        const r = await fetch(url, { credentials: 'omit' });
+        if (!r.ok || +r.headers.get('content-length') > MAX_ASSET) return;
+        const buffer = await r.arrayBuffer();
+        if (buffer.byteLength <= MAX_ASSET) files[url] = { base64: toBase64(buffer), type: r.headers.get('content-type') || '' };
+      } catch { /* stays a link to the original */ }
+    }));
+    return { files };
+  },
   'fetch-text': async (msg) => {
     try {
       const r = await fetch(msg.url, { credentials: 'omit' });
