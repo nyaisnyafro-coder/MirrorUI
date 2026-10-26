@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MirrorUI</title>
+<link rel="icon" href="icons/32.png">
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="results.css">
+</head>
+<body>
+  <header>
+    <img src="icons/32.png" alt="" class="logo">
+    <div class="source">
+      <strong id="what">Loading…</strong>
+      <a id="url" target="_blank" rel="noreferrer"></a>
+    </div>
+    <label class="fonts" title="Embeds the page's own font files. Only use fonts you're licensed to use.">
+      <input type="checkbox" id="fonts"> Embed original fonts
+    </label>
+  </header>
+
+  <main>
+    <p class="error" id="error" hidden></p>
+
+    <section id="compare-section">
+      <div class="bar">
+        <h2>Original vs clone</h2>
+        <div class="seg" id="widths"></div>
+      </div>
+      <div class="compare">
+        <figure><figcaption>Original</figcaption><div class="stage" id="original-stage"></div></figure>
+        <figure><figcaption>Clone</figcaption><div class="stage" id="clone-stage"></div></figure>
+      </div>
+    </section>
+
+    <section id="code-section">
+      <div class="bar">
+        <div class="seg" id="tabs">
+          <button class="btn" data-tab="astro" aria-pressed="true">Astro</button>
+          <button class="btn" data-tab="html" aria-pressed="false">HTML</button>
+          <button class="btn" data-tab="theme" aria-pressed="false">theme.css</button>
+        </div>
+        <div class="actions">
+          <button class="btn" id="copy">Copy</button>
+          <button class="btn primary" id="download">Download</button>
+        </div>
+      </div>
+      <pre><code id="code"></code></pre>
+    </section>
+  </main>
+  <script src="lib/compile.js"></script>
+  <script src="lib/stage.js"></script>
+  <script src="results.js"></script>
+</body>
+</html>

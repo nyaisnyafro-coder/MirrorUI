@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# generated: capture cache, CLI output (holds other sites' screenshots), packaged extension
+.cache/
+out/
+dist/
+tests/output/
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
