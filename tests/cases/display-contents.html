@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="_base.css">
+<!-- A wrapper that is display:contents on phones (its children join the parent grid, reordered) and a
+     space-between flex column from 768px, stretched by the taller form beside it. -->
+<style>
+  #t { display: grid; grid-template-columns: 1fr; gap: 16px; background: #fff; padding: 16px; }
+  .side { display: contents; }
+  .side h2 { margin: 0; order: 1; }
+  .side p { margin: 0; order: 3; }
+  .form { order: 2; display: flex; flex-direction: column; gap: 8px; }
+  .form input { border: 0; border-bottom: 1px solid #aaa; padding: 8px 0; font: inherit; background: transparent; }
+  @media (min-width: 768px) {
+    #t { grid-template-columns: 1fr 1fr; }
+    .side { display: flex; flex-direction: column; justify-content: space-between; }
+  }
+</style>
+<div id="t"><div class="side"><h2>Formu doldurun</h2><p>Ya da doğrudan yazın.</p></div>
+  <div class="form"><input placeholder="Ad"><input placeholder="Telefon"><input placeholder="Şirket"><input placeholder="E-posta"></div></div>

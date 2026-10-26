@@ -27,14 +27,24 @@ def data_url(path):
     return 'data:image/png;base64,' + base64.b64encode(Path(path).read_bytes()).decode()
 
 
-async def verify(browser: Browser, target, out_dir, viewports, label='clone'):
-    """target: generated HTML file, or the URL of a page that wraps the component in #mirrorui-frame."""
+# The generated page loads Tailwind from the CDN; the comparison uses the extension's bundled copy instead:
+# no network needed and nothing to wait for.
+TAILWIND_LOCAL = Path(__file__).parent.parent / 'extension' / 'vendor' / 'tailwindcss-browser.js'
+
+
+async def verify(browser: Browser, target, out_dir, viewports, label='clone', replay=None):
+    """target: generated HTML file, or the URL of a page that wraps the component in #mirrorui-frame.
+    replay: the capture's Replay, so the clone's images come from the same recording."""
     out_dir = Path(out_dir)
     url = target if str(target).startswith('http') else Path(target).resolve().as_uri()
     report = {}
     for width in viewports:
         ctx = await browser.new_context(viewport={'width': width, 'height': 900}, device_scale_factor=1)
         try:
+            if replay:
+                await replay.attach(ctx)
+            await ctx.route('https://cdn.jsdelivr.net/npm/@tailwindcss/browser@*',
+                            lambda route: route.fulfill(path=str(TAILWIND_LOCAL), content_type='text/javascript'))
             page = await ctx.new_page()
             await page.goto(url, wait_until='load', timeout=60_000)
             try:

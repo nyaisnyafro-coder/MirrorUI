@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="_base.css">
+<!-- margin-top:auto pushing a button down a flex column, and a centred max-width container. -->
+<style>
+  #t { max-width: 480px; margin: 0 auto; padding: 24px; background: #fff; }
+  .row { display: flex; gap: 12px; }
+  .card { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #ddd; border-radius: 10px; }
+  .card a { margin-top: auto; align-self: flex-start; background: #000; color: #fff; padding: 6px 14px; border-radius: 999px; text-decoration: none; }
+</style>
+<section id="t"><div class="row">
+  <div class="card"><b>One</b><span>Short text.</span><a href="#">More</a></div>
+  <div class="card"><b>Two</b><span>A much longer text that wraps onto several lines so this card is taller.</span><a href="#">More</a></div>
+</div></section>

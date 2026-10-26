@@ -1,0 +1,3 @@
+/* shared by the regression cases: a plain system font so results don't depend on web fonts */
+html { font-family: Arial, sans-serif; }
+body { margin: 0; padding: 24px; background: #f3f3f3; color: #111; }

@@ -1,0 +1,11 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="_base.css">
+<!-- Titles clamped to 3 lines. Chrome reports their display as flow-root; a display class would undo the clamp. -->
+<style>
+  #t { display: grid; grid-template-columns: repeat(2, 220px); gap: 12px; }
+  .card { background: #fff; padding: 12px; border-radius: 8px; }
+  h3 { margin: 0; font-size: 15px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+</style>
+<div id="t">
+  <div class="card"><h3>Beşiktaş, Süper Lig'de Başakşehir'i ağırlıyor: muhtemel 11 ve maçın yayın bilgileri ile tüm ayrıntılar burada</h3></div>
+  <div class="card"><h3>Kısa başlık</h3></div>
+</div>

@@ -163,8 +163,9 @@
     if (p === null) return ['auto', 'none'].includes(value) ? `${prefix}-${value}` : `${prefix}-[${arb(value)}]`;
     if (parentSize && parentSize > 0) {
       const ratio = p / parentSize;
-      if (Math.abs(ratio - 1) < 0.01) return `${prefix}-full`;
-      for (const [a, b] of FRACTIONS) if (Math.abs(ratio - a / b) < 0.005) return `${prefix}-${a}/${b}`;
+      // a fraction only when it lands within half a pixel: a 176px sidebar in 295px is not 3/5 (177px)
+      if (Math.abs(p - parentSize) <= 0.5) return `${prefix}-full`;
+      for (const [a, b] of FRACTIONS) if (Math.abs(p - (parentSize * a) / b) <= 0.5) return `${prefix}-${a}/${b}`;
       // nearly the full width minus a gutter, e.g. width: calc(100% - 40px): keeps it fluid between breakpoints
       const gap = parentSize - p;
       if (prefix === 'w' && gap >= 4 && gap <= 64 && ratio > 0.75) return `w-[calc(100%_-_${num(gap)}px)]`;
@@ -284,8 +285,12 @@
       const tracks = v !== 'none' ? words(v) : [];
       const sizes = tracks.map(px);
       let c;
+      const equal = sizes.every((x) => x !== null) && Math.max(...sizes) - Math.min(...sizes) < 1;
+      // grid-cols-N is N flexible columns: right only when the tracks fill the box; fixed ones stay fixed
+      const filled = sizes.reduce((a, b) => a + b, 0) + (px(s['column-gap']) || 0) * (sizes.length - 1);
       if (!tracks.length) c = 'grid-cols-none';
-      else if (sizes.every((x) => x !== null) && Math.max(...sizes) - Math.min(...sizes) < 1) c = `grid-cols-${tracks.length}`;
+      else if (equal && Math.abs(filled - n.cw) <= 1) c = `grid-cols-${tracks.length}`;
+      else if (equal) c = `grid-cols-[repeat(${tracks.length},${num(sizes[0])}px)]`;
       else c = `grid-cols-[${arb(v)}]`;
       put('grid-template-columns', c);
     }
@@ -391,10 +396,16 @@
       let c;
       if (lh === null) c = 'leading-[normal]';
       else {
+        // Line heights add up line after line, so no half-pixel rounding here: a named ratio or an exact
+        // scale step, else the ratio itself when it's a clean number (1.35), else the exact px.
         const ratio = fs ? lh / fs : 0;
-        const hit = LEADING.find(([k]) => Math.abs(ratio - k) < 0.01);
-        const sp = space(s['line-height']);
-        c = hit ? `leading-${hit[1]}` : !sp.startsWith('[') ? `leading-${sp}` : `leading-[${num(lh)}px]`;
+        const hit = LEADING.find(([k]) => Math.abs(lh - fs * k) < 0.05);
+        const step = Math.round(lh / 4 * 4) / 4; // spacing scale in quarter steps
+        const clean = Math.round(ratio * 1000) / 1000;
+        if (hit) c = `leading-${hit[1]}`;
+        else if (Math.abs(lh - step * 4) < 0.05 && lh >= 1) c = `leading-${num(step)}`;
+        else if (fs && Math.abs(lh - fs * clean) < 0.01) c = `leading-[${num(clean)}]`;
+        else c = `leading-[${num(lh)}px]`;
       }
       out['line-height'] = [c, !keep.has('line-height') && !pinLeading];
     }

@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="_base.css">
+<!-- A fixed bar centred with left: calc(50% - 7.5px) + translateX(-50%), as wide as the viewport minus a gutter
+     up to 560px. Per-width px values would drift between breakpoints. -->
+<style>
+  body { min-height: 300px; }
+  #t { position: fixed; top: 20px; left: calc(50% - 7.5px); transform: translateX(-50%); width: min(560px, calc(100% - 40px));
+    box-sizing: border-box; padding: 12px 20px; border-radius: 999px; background: #bdbdbd; color: #fff; }
+</style>
+<header id="t">Logo</header>

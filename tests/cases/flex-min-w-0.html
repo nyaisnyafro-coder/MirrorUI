@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="_base.css">
+<!-- A flex child with min-width:0 holding a long scrolling row. Without min-w-0 in the clone the row's content
+     width pushes the column out of the container (a news site's <main> overflowed this way). -->
+<style>
+  #t { display: flex; gap: 16px; max-width: 640px; padding: 16px; background: #fff; }
+  aside { width: 160px; flex-shrink: 0; background: #e5e7eb; padding: 8px; }
+  main { flex: 1; min-width: 0; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; }
+  .chips span { white-space: nowrap; padding: 4px 10px; border-radius: 999px; background: #eef; }
+</style>
+<div id="t"><aside>Sidebar</aside><main>
+  <div class="chips"><span>Gündem</span><span>Türkiye</span><span>Fenerbahçe</span><span>Galatasaray</span><span>İstanbul</span><span>Ekonomi</span><span>Teknoloji</span><span>Spor</span><span>Kültür</span><span>Sanat</span><span>Bilim</span><span>Dünya</span></div>
+  <p>The column must stay inside the card.</p></main></div>

@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 
 from playwright.async_api import Browser, Error as PWError, TimeoutError as PWTimeout
@@ -74,13 +75,57 @@ async def fetch_sheets(ctx, urls, referer):
     return sheets
 
 
-async def capture_viewport(browser: Browser, url, selector, width, shot_path=None, widest=False):
+class Replay:
+    """Offline, repeatable captures for tests: answer every request from a recorded HAR (nothing goes to the
+    network) and freeze the page clock, so carousels, live clocks and "x minutes ago" stay put. Timers only
+    run when we advance the clock by `settle_ms` after load and between scroll steps."""
+
+    def __init__(self, har, clock_ms=1_790_000_000_000, settle_ms=1500):
+        self.har, self.clock_ms, self.settle_ms = str(har), clock_ms, settle_ms
+
+    async def attach(self, ctx):
+        # web requests only: the clone being verified is a local file
+        await ctx.route_from_har(self.har, url=re.compile(r'^https?://'), not_found='abort')
+
+    async def before_load(self, page):
+        await page.clock.install(time=self.clock_ms / 1000)
+        await page.clock.pause_at(self.clock_ms / 1000)
+
+    def body(self, url):
+        """A recorded response body (e.g. a font file), or None."""
+        import zipfile
+        with zipfile.ZipFile(self.har) as z:
+            entries = json.loads(z.read('har.har'))['log']['entries']
+            for e in entries:
+                if e['request']['url'] == url and e['response']['content'].get('_file'):
+                    return z.read(e['response']['content']['_file'])
+        return None
+
+
+async def scroll_through(page, replay=None):
+    """Scroll the page once so lazy images and scroll-reveal content settle in their final state."""
+    height = await page.evaluate('document.body.scrollHeight')
+    step = await page.evaluate('innerHeight')
+    for y in range(0, height, max(step, 200)):
+        await page.evaluate('y => scrollTo(0, y)', y)
+        if replay:
+            await page.clock.run_for(80)  # a paused clock: advance it instead of waiting
+        else:
+            await page.wait_for_timeout(80)
+    await page.evaluate('scrollTo(0, 0)')
+
+
+async def capture_viewport(browser: Browser, url, selector, width, shot_path=None, widest=False, replay=None):
     # No reduced-motion emulation: sites drop their transitions under it, and the freeze in extract.js
     # already stops animations. This also keeps captures identical to the extension's.
     ctx = await browser.new_context(viewport={'width': width, 'height': VIEWPORT_HEIGHT},
                                     bypass_csp=True, device_scale_factor=1)
     try:
+        if replay:
+            await replay.attach(ctx)
         page = await ctx.new_page()
+        if replay:
+            await replay.before_load(page)
         try:
             resp = await page.goto(url, wait_until='load', timeout=45_000)
         except PWError as e:
@@ -94,15 +139,11 @@ async def capture_viewport(browser: Browser, url, selector, width, shot_path=Non
             await page.wait_for_load_state('networkidle', timeout=8_000)
         except PWTimeout:
             pass
+        if replay:
+            await page.clock.run_for(replay.settle_ms)  # let the page's start-up timers fire, the same way every run
         await page.add_script_tag(content=EXTRACT_JS)
         await page.evaluate('MirrorUIExtract.freeze()')
-        # walk the page once so lazy images and scroll-reveal content settle in their final state
-        await page.evaluate("""async () => {
-            for (let y = 0; y < document.body.scrollHeight; y += innerHeight) {
-                scrollTo(0, y); await new Promise(r => setTimeout(r, 80));
-            }
-            scrollTo(0, 0);
-        }""")
+        await scroll_through(page, replay)
         await page.evaluate('document.fonts.ready.then(() => true)')
         el = page.locator(selector).first
         if await el.count() == 0:
@@ -130,8 +171,16 @@ async def capture_viewport(browser: Browser, url, selector, width, shot_path=Non
         await ctx.close()
 
 
-async def download_fonts(browser: Browser, urls, referer):
-    """Font files as data: URLs, so the clone renders with them anywhere (no CORS, no hotlinking)."""
+async def download_fonts(browser: Browser, urls, referer, replay=None):
+    """Font files as data: URLs, so the clone renders with them anywhere (no CORS, no hotlinking).
+    With a replay they come from the recording instead of the network."""
+    def data_url(url, body):
+        ext = url.split('?')[0].rsplit('.', 1)[-1].lower()
+        mime = {'woff2': 'font/woff2', 'woff': 'font/woff', 'ttf': 'font/ttf', 'otf': 'font/otf'}.get(ext, 'font/woff2')
+        return f'data:{mime};base64,' + base64.b64encode(body).decode()
+
+    if replay:
+        return {url: data_url(url, body) for url in urls if (body := replay.body(url))}
     ctx = await browser.new_context()
     files = {}
     try:
@@ -141,15 +190,13 @@ async def download_fonts(browser: Browser, urls, referer):
             except PWError:
                 continue
             if r.ok:
-                ext = url.split('?')[0].rsplit('.', 1)[-1].lower()
-                mime = {'woff2': 'font/woff2', 'woff': 'font/woff', 'ttf': 'font/ttf', 'otf': 'font/otf'}.get(ext, 'font/woff2')
-                files[url] = f'data:{mime};base64,' + base64.b64encode(await r.body()).decode()
+                files[url] = data_url(url, await r.body())
     finally:
         await ctx.close()
     return files
 
 
-async def capture(browser: Browser, url, selector, viewports=DEFAULT_VIEWPORTS, out_dir=None, use_cache=True):
+async def capture(browser: Browser, url, selector, viewports=DEFAULT_VIEWPORTS, out_dir=None, use_cache=True, replay=None):
     """Returns one extractor result per viewport. Screenshots of the original go to out_dir."""
     CACHE_DIR.mkdir(exist_ok=True)
     results = []
@@ -157,10 +204,10 @@ async def capture(browser: Browser, url, selector, viewports=DEFAULT_VIEWPORTS, 
         widest = width == max(viewports)
         cached = CACHE_DIR / f'{cache_key(url, selector, width, widest)}.json'
         shot = Path(out_dir) / f'original-{width}.png' if out_dir else None
-        if use_cache and cached.exists() and (shot is None or shot.exists()):
+        if use_cache and not replay and cached.exists() and (shot is None or shot.exists()):
             results.append(json.loads(cached.read_text(encoding='utf-8')))
             continue
-        data = await capture_viewport(browser, url, selector, width, shot, widest)
+        data = await capture_viewport(browser, url, selector, width, shot, widest, replay)
         cached.write_text(json.dumps(data), encoding='utf-8')
         results.append(data)
     return results

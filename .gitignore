@@ -9,6 +9,8 @@ __pycache__/
 out/
 dist/
 tests/output/
+# recordings of real sites hold third-party content (news photos, fonts); re-record with tests/record_sites.py
+tests/sites/
 
 # editors / OS
 .vscode/
