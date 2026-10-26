@@ -213,14 +213,15 @@
     // layout. The element, its parent and next sibling are measured: a bottom/right margin only moves those.
     const boxes = (el) => [el, el.parentElement, el.nextElementSibling]
       .map((e) => (e ? e.getBoundingClientRect() : null));
-    // sameWith(el, 'width', before) or sameWith(el, {width: 'auto', height: 'auto'}, before) to test several at once
-    const sameWith = (el, prop, before, value = 'auto') => {
-      const st = el.style;
+    // sameWith(el, 'width', before) or sameWith(el, {width: 'auto', height: 'auto'}, before) to test several at once.
+    // `others` get the same change at the same time (see the stretched flex/grid items below).
+    const sameWith = (el, prop, before, value = 'auto', others = []) => {
       const changes = typeof prop === 'string' ? { [prop]: value } : prop;
-      const saved = Object.keys(changes).map((p) => [p, st.getPropertyValue(p), st.getPropertyPriority(p)]);
-      for (const [p, v] of Object.entries(changes)) st.setProperty(p, v, 'important');
+      const saved = [el, ...others].flatMap((e) => Object.keys(changes)
+        .map((p) => [e.style, p, e.style.getPropertyValue(p), e.style.getPropertyPriority(p)]));
+      for (const e of [el, ...others]) for (const [p, v] of Object.entries(changes)) e.style.setProperty(p, v, 'important');
       const after = boxes(el);
-      for (const [p, old, pri] of saved) if (old) st.setProperty(p, old, pri); else st.removeProperty(p);
+      for (const [st, p, old, pri] of saved) if (old) st.setProperty(p, old, pri); else st.removeProperty(p);
       return after.every((r, i) => !r || ['x', 'y', 'width', 'height'].every((k) => Math.abs(r[k] - before[i][k]) < 0.5));
     };
     // images, SVGs, video… keep their aspect ratio: with only one side set to auto it's recomputed from the other
@@ -290,8 +291,15 @@
         if (REPLACED.has(tag)) {
           n.fw = n.fh = sameWith(el, { width: 'auto', height: 'auto' }, before);
         } else {
-          n.fw = sameWith(el, 'width', before);
-          n.fh = sameWith(el, 'height', before);
+          // A flex or grid item stretched across the line sizes itself from its siblings: three cards each
+          // 80px tall look free one at a time, since the other two still hold the line at 80px. On the cross
+          // axis they are tested together.
+          const pdir = parentStyles ? parentStyles['flex-direction'] : 'row';
+          const sibs = /flex|grid/.test(parentDisplay) && el.parentElement && el.parentElement.childElementCount <= 50
+            ? [...el.parentElement.children].filter((c) => c !== el) : [];
+          const grid = /grid/.test(parentDisplay), column = pdir.startsWith('column');
+          n.fw = sameWith(el, 'width', before, 'auto', grid || column ? sibs : []);
+          n.fh = sameWith(el, 'height', before, 'auto', grid || !column ? sibs : []);
         }
         // margin:auto shows up as px in computed style. It was auto if setting auto changes nothing while
         // both 0 and a larger margin do: an auto margin holds exactly the free space, whereas a margin

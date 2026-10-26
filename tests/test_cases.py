@@ -23,6 +23,8 @@ EXPECT = {
     'display-contents': ('display-contents.html', '#t', [r'class="contents\b', r'\bmd:flex\b'], []),
     'underline': ('underline.html', '#t', [r'\bdecoration-2\b', r'\bunderline-offset-4\b'], []),
     'min-h-screen': ('min-h-screen.html', '#t', [r'\bmin-h-screen\b'], []),
+    'shadows': ('shadows.html', '#t', [r'shadow-\[0px_30px_60px_-20px_rgba\(76,29,149,0\.6\)\]',
+                                       r'shadow-\[inset_0px_2px_6px_0px_rgb\(148,163,184\),0px_0px_0px_3px_rgb\(199,210,254\)\]'], []),
     'interactive': ('interactive.html', '#t',
                     [r'\bfocus-visible:outline-solid\b', r'\bfocus-visible:outline-offset-2\b', r'\bactive:scale-95\b',
                      r'\bfocus:shadow-\[', r'\bfocus:border-accent-2\b',r'\brotate-6\b', r'\bhover:scale-110\b',

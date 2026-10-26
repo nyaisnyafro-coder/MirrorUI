@@ -11,7 +11,9 @@ window.addEventListener('message', (e) => {
   // Chrome gives extension pages `body { font-family: "Segoe UI"…; font-size: 75% }`; a normal page doesn't
   // have that, so undo it before the clone's own styles load.
   // the frame is sized to the content, so it never needs its own scrollbar
-  const reset = '<style>body { font-family: inherit; font-size: 100%; } html { overflow: hidden; }</style>';
+  // A hair below full opacity makes Chrome draw the text with greyscale antialiasing: the preview is shown
+  // scaled down, and shrunk subpixel text shows coloured fringes. (Not visible: 0.999 rounds to the same colours.)
+  const reset = '<style>body { font-family: inherit; font-size: 100%; } html { overflow: hidden; opacity: 0.999; }</style>';
   document.open();
   document.write(e.data.html.replace('<head>', `<head>\n${reset}`).replace('</body>', `${reporter}</body>`));
   document.close();

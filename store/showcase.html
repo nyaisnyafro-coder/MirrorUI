@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumen — analytics for small teams</title>
+<!-- A made-up landing page for the store screenshots (scripts/store_images.py). -->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: #0f172a; background: #f8fafc; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 48px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+  .logo { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
+  .logo span { color: #6d28d9; }
+  nav { display: flex; gap: 28px; font-size: 15px; }
+  nav a { color: #475569; text-decoration: none; }
+  nav a:hover { color: #6d28d9; }
+  .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center; padding: 64px 48px 56px; max-width: 1200px; margin: 0 auto; }
+  .tag { display: inline-block; padding: 4px 12px; border-radius: 999px; background: #ede9fe; color: #6d28d9; font-size: 13px; font-weight: 600; }
+  h1 { font-size: 52px; line-height: 1.05; letter-spacing: -0.03em; margin: 16px 0; }
+  .hero p { font-size: 18px; color: #475569; line-height: 1.6; margin: 0 0 28px; }
+  .cta { display: inline-block; padding: 14px 24px; border-radius: 12px; background: #6d28d9; color: #fff; text-decoration: none; font-weight: 600; transition: background-color .2s; }
+  .cta:hover { background: #5b21b6; }
+  .chart { background: linear-gradient(160deg, #1e1b4b, #4c1d95); border-radius: 24px; padding: 28px; height: 300px; display: flex; align-items: flex-end; gap: 14px; box-shadow: 0 30px 60px -20px rgba(76, 29, 149, .5); }
+  .bar { flex: 1; border-radius: 8px 8px 4px 4px; background: linear-gradient(#c4b5fd, #8b5cf6); }
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 0 48px 64px; max-width: 1200px; margin: 0 auto; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 24px; transition: transform .2s; }
+  .card:hover { transform: translateY(-4px); }
+  .icon { width: 40px; height: 40px; border-radius: 12px; background: #ede9fe; display: grid; place-items: center; color: #6d28d9; font-weight: 800; }
+  .card h3 { margin: 16px 0 6px; font-size: 18px; }
+  .card p { margin: 0; color: #64748b; line-height: 1.55; font-size: 15px; }
+  @media (max-width: 900px) {
+    header { padding: 16px 20px; } nav { display: none; }
+    .hero { grid-template-columns: 1fr; padding: 40px 20px; } h1 { font-size: 38px; }
+    .features { grid-template-columns: 1fr; padding: 0 20px 40px; }
+  }
+</style>
+</head>
+<body>
+<header><div class="logo">lumen<span>.</span></div><nav><a href="#">Product</a><a href="#">Pricing</a><a href="#">Docs</a><a href="#">Sign in</a></nav></header>
+<main>
+  <section class="hero">
+    <div>
+      <span class="tag">New · Live dashboards</span>
+      <h1>Analytics your whole team understands</h1>
+      <p>Lumen turns raw events into clear, shareable dashboards in minutes — no SQL, no setup calls.</p>
+      <a class="cta" href="#">Start free trial</a>
+    </div>
+    <div class="chart"><div class="bar" style="height:35%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:42%"></div><div class="bar" style="height:70%"></div><div class="bar" style="height:62%"></div><div class="bar" style="height:88%"></div><div class="bar" style="height:100%"></div></div>
+  </section>
+  <section class="features">
+    <article class="card"><div class="icon">⚡</div><h3>Real-time</h3><p>Every chart updates the moment new data arrives.</p></article>
+    <article class="card"><div class="icon">◎</div><h3>Goals</h3><p>Set targets and see at a glance what is on track.</p></article>
+    <article class="card"><div class="icon">⇄</div><h3>Share</h3><p>Send a live link to anyone, no account needed.</p></article>
+  </section>
+</main>
+</body>
+</html>

@@ -174,6 +174,16 @@
     return cls(prefix, space(value));
   };
 
+  // Computed shadows read "rgba(0, 0, 0, 0.1) 0px 1px 3px 0px inset"; Tailwind only recognises an arbitrary
+  // shadow written the usual way round ("inset 0px 1px 3px 0px rgba(…)") and silently drops the other.
+  const shadowValue = (v) => v.split(/,(?![^(]*\))/).map((one) => {
+    const color = /^\s*((?:rgba?|hsla?|oklch|oklab|lab|lch|color)\([^)]*\)|#[\da-f]+|[a-z]+(?=\s))/i.exec(one);
+    let rest = color ? one.slice(color[0].length) : one;
+    const inset = /\binset\b/.test(rest);
+    rest = rest.replace(/\binset\b/, '').trim();
+    return [inset ? 'inset' : '', rest, color ? color[1] : ''].filter(Boolean).join(' ');
+  }).join(', ');
+
   // A translation by half or all of the element's own size is the centring idiom (-translate-x-1/2); other
   // translations map to the spacing scale.
   const translateAxis = (t, size, name) => {
@@ -531,7 +541,7 @@
       if (has('outline-color') && s['outline-color'] !== s.color) put('outline-color', theme.color('outline', s['outline-color']));
       if (has('outline-offset')) put('outline-offset', o !== null && Number.isInteger(o) ? cls('outline-offset', String(o)) : `outline-offset-[${arb(s['outline-offset'])}]`);
     }
-    if (has('box-shadow')) put('box-shadow', s['box-shadow'] === 'none' ? 'shadow-none' : `shadow-[${arb(s['box-shadow'])}]`);
+    if (has('box-shadow')) put('box-shadow', s['box-shadow'] === 'none' ? 'shadow-none' : `shadow-[${arb(shadowValue(s['box-shadow']))}]`);
     if (has('opacity')) {
       const o = parseFloat(s.opacity);
       put('opacity', (o * 100) % 5 === 0 ? `opacity-${num(o * 100)}` : `opacity-[${num(o)}]`);
