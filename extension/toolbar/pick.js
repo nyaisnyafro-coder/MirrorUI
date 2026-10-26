@@ -145,11 +145,11 @@
   // An Astro-ready folder: the component, theme.css, and the images, videos and fonts it uses under public/
   const downloadZip = async () => {
     const { built } = state;
-    const name = built.astroName === 'Component' ? (location.hostname.replace(/^www\./, '') || 'clone') : built.astroName;
+    const name = MirrorUIPackage.slugFor(built, location.hostname);
     const urls = MirrorUIPackage.urls(built);
     if (urls.length) MUI.toast(`Downloading ${urls.length} asset${urls.length > 1 ? 's' : ''}…`);
     const fetched = urls.length ? ((await MUI.send({ type: 'fetch-assets', urls })).files || {}) : {};
-    MUI.download(`${name}.zip`, MirrorUIZip(MirrorUIPackage.files(built, fetched)));
+    MUI.download(`${name}.zip`, MirrorUIZip(MirrorUIPackage.files(built, fetched, { slug: name })));
     const missing = urls.filter((u) => !fetched[u]).length;
     if (missing) MUI.toast(`${missing} asset${missing > 1 ? 's' : ''} couldn't be downloaded; see README.md`);
   };
@@ -178,6 +178,8 @@
       h('div', { class: 'seg' }, widths.map((w) => button(`${w}px`, { pressed: w === state.width, onclick: () => { state.width = w; render(); } }))),
       h('label', { class: 'check', title: "Embeds the page's own font files. Only use fonts you're licensed to use." }, fonts, 'Embed fonts'),
       button('Full view', { icon: 'external', title: 'Open in a tab', onclick: () => MUI.send({ type: 'open-results', id: job.id }) }),
+      button('Save to project', { icon: 'download', title: 'Write it into your Astro project folder (opens the full view, where you choose the folder)',
+        onclick: () => MUI.send({ type: 'open-results', id: job.id }) }),
       button(tool === 'clone' ? 'Again' : 'Pick again', { icon: tool === 'clone' ? 'clone' : 'pick', onclick: again }),
       button('Download ZIP', { icon: 'download', primary: true, onclick: downloadZip, title: 'Astro component, theme.css, preview HTML, and the images, videos and fonts it uses' }),
     ]);

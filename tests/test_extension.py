@@ -105,12 +105,12 @@ def pick_zip(page, selector):
 def test_zip_is_an_astro_project_with_its_assets(toolbar, server):
     page = toolbar(f'{server}/tests/cases/bg-url.html')
     files = pick_zip(page, '#t')
-    assert {'index.html', 'src/components/Component.astro', 'src/styles/theme.css', 'README.md',
-            'public/clone-assets/bg-pattern.svg'} <= set(files)
-    assert files['public/clone-assets/bg-pattern.svg'].startswith(b'<svg')
-    astro, html = files['src/components/Component.astro'].decode(), files['index.html'].decode()
-    assert "url('/clone-assets/bg-pattern.svg')" in astro and 'bg\\_pattern' not in astro
-    assert "url('public/clone-assets/bg-pattern.svg')" in html
+    assert {'index.html', 'src/components/Clone127001.astro', 'src/styles/mirrorui/127-0-0-1.css', 'README.md',
+            'public/clone-assets/127-0-0-1/bg-pattern.svg'} <= set(files)
+    assert files['public/clone-assets/127-0-0-1/bg-pattern.svg'].startswith(b'<svg')
+    astro, html = files['src/components/Clone127001.astro'].decode(), files['index.html'].decode()
+    assert "url('/clone-assets/127-0-0-1/bg-pattern.svg')" in astro and 'bg\\_pattern' not in astro
+    assert "url('public/clone-assets/127-0-0-1/bg-pattern.svg')" in html
 
     # canvases: their pictures become files too, one per breakpoint
     page = toolbar(f'{server}/tests/cases/interactive.html')
@@ -118,7 +118,7 @@ def test_zip_is_an_astro_project_with_its_assets(toolbar, server):
     pngs = [n for n in files if n.endswith('.png')]
     assert pngs and all(files[n].startswith(b'\x89PNG') for n in pngs)
     # (tiny pictures may stay inline)
-    assert not re.search(r'data:image/png;base64,[\w+/=]{4096,}', files['src/components/Component.astro'].decode())
+    assert not re.search(r'data:image/png;base64,[\w+/=]{4096,}', files['src/components/Clone127001.astro'].decode())
 
 
 def test_clone_page_zip_has_section_components(toolbar, server):
@@ -134,6 +134,65 @@ def test_clone_page_zip_has_section_components(toolbar, server):
     with zipfile.ZipFile(download.value.path()) as z:
         names = set(z.namelist())
     assert {f'src/components/page/{n}.astro' for n in ('Header', 'Hero', 'Features', 'Footer')} | {'src/components/Page.astro'} <= names
+
+
+SAVE_INTO_FAKE_PROJECT = '''async () => {
+  // the extension's private file system stands in for a project folder the user picked
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle('my-site', { create: true });
+  const put = async (path, text) => {
+    const parts = path.split('/');
+    let d = dir;
+    for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
+    const w = await (await d.getFileHandle(parts.at(-1), { create: true })).createWritable();
+    await w.write(text);
+    await w.close();
+  };
+  await put('package.json', '{"dependencies": {"astro": "^5.0.0"}}');
+  await put('src/styles/global.css', '@import "tailwindcss";\\n');
+  await saveTo(dir);
+  const out = {};
+  const walk = async (d, prefix) => {
+    for await (const [name, h] of d.entries()) {
+      if (h.kind === 'directory') await walk(h, prefix + name + '/');
+      else out[prefix + name] = await (await h.getFile()).text();
+    }
+  };
+  await walk(dir, '');
+  return out;
+}'''
+
+
+def test_save_to_project(browser_ctx, toolbar, server):
+    ctx, _ = browser_ctx
+    page = toolbar(f'{server}/tests/cases/bg-url.html')
+    tool(page, 'Pick')
+    page.locator('#t').hover(position={'x': 5, 'y': 5})
+    page.keyboard.press('Enter')
+    modal = page.locator('mirrorui-root .modal')
+    expect(modal.locator('pre')).to_contain_text('---', timeout=60_000)
+    with ctx.expect_page() as opened:
+        modal.locator('button', has_text='Save to project').click()
+    results = opened.value
+    asked = []
+    results.on('dialog', lambda d: (asked.append(d.message), d.accept()))
+    try:
+        expect(results.locator('#code')).to_contain_text('---')
+        files = results.evaluate(SAVE_INTO_FAKE_PROJECT)
+        # editing the project's own stylesheet is asked first
+        assert len(asked) == 1 and '@import "./mirrorui/127-0-0-1.css";' in asked[0] and 'replaced' not in asked[0]
+        assert 'src/components/Clone127001.astro' in files
+        assert files['src/styles/global.css'] == '@import "tailwindcss";\n@import "./mirrorui/127-0-0-1.css";\n'
+        assert '@theme' in files['src/styles/mirrorui/127-0-0-1.css'] and 'tailwindcss' not in files['src/styles/mirrorui/127-0-0-1.css']
+        assert files['public/clone-assets/127-0-0-1/bg-pattern.svg'].startswith('<svg')
+        assert "url('/clone-assets/127-0-0-1/bg-pattern.svg')" in files['src/components/Clone127001.astro']
+        expect(results.locator('#saved')).to_contain_text('Saved')
+        # saving again replaces the files after asking, and doesn't import the theme twice
+        again = results.evaluate(SAVE_INTO_FAKE_PROJECT)
+        assert 'will be replaced' in asked[1] and 'src/components/Clone127001.astro' in asked[1]
+        assert again['src/styles/global.css'].count('mirrorui/127-0-0-1.css') == 1
+    finally:
+        results.close()
 
 
 def test_clone_page_preview_height_is_stable(toolbar, server):

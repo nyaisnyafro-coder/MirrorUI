@@ -2,12 +2,12 @@
 // fonts the clone loads saved next to it instead of hotlinked from the original site:
 //   index.html                       standalone preview (open it straight from the folder)
 //   src/components/<Name>.astro      the component; for a page, its sections in src/components/<name>/
-//   src/styles/theme.css             Tailwind import, @font-face rules and the @theme tokens
-//   public/clone-assets/…            the assets; the code refers to them as /clone-assets/…
+//   src/styles/mirrorui/<slug>.css   @font-face rules and @theme tokens, imported after Tailwind
+//   public/clone-assets/<slug>/…     the assets; the code refers to them as /clone-assets/<slug>/…
 //   README.md                        how to use it, and anything that couldn't be downloaded
 //
 //   MirrorUIPackage.urls(built) -> [url]   the http(s) URLs to fetch
-//   MirrorUIPackage.files(built, fetched, {name}) -> [{name, data}]
+//   MirrorUIPackage.files(built, fetched, {slug}) -> [{name, data}]
 //       fetched: {url: {base64, type}} for the URLs that could be downloaded
 globalThis.MirrorUIPackage = (() => {
   const DIR = 'clone-assets';
@@ -71,29 +71,46 @@ globalThis.MirrorUIPackage = (() => {
     return text;
   };
 
-  const readme = (built, components, missing) => `# ${built.astroName}
+  const kebab = (s) => s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+  const readme = (main, slug, missing) => `# ${main}
 
 Cloned with MirrorUI. Open \`index.html\` to see it on its own.
 
 ## In an Astro project
 
-1. Copy \`src/\` and \`public/\` into your project.
-2. Tailwind CSS v4 has to be set up (\`npx astro add tailwind\`). Import the theme once, in your layout or
-   global stylesheet: \`import '../styles/theme.css';\` (it contains \`@import "tailwindcss"\`, so it can
-   replace the global stylesheet the Tailwind integration created).
+1. Copy \`src/\` and \`public/\` into your project (or use "Save to project" in MirrorUI, which does all of this).
+2. Tailwind CSS v4 has to be set up (\`npx astro add tailwind\`). In the stylesheet that has
+   \`@import "tailwindcss";\` (usually \`src/styles/global.css\`), add below it:
+
+   \`\`\`css
+   @import "./mirrorui/${slug}.css";
+   \`\`\`
 3. Use the component:
 
-\`\`\`astro
----
-${components.map((c) => `import ${c} from '../components/${c}.astro';`).join('\n')}
----
-${components.map((c) => `<${c} />`).join('\n')}
-\`\`\`
+   \`\`\`astro
+   ---
+   import ${main} from '../components/${main}.astro';
+   ---
+   <${main} />
+   \`\`\`
 
-Images, videos and fonts are in \`public/${DIR}/\`. Only use assets and fonts you have the rights to.
+Images, videos and fonts are in \`public/${DIR}/${slug}/\`. Only use assets and fonts you have the rights to.
+The theme's color and font names (accent, ink, tone-95…) are shared by every clone; a later clone's theme file
+overrides an earlier one's values.
 ${missing.length ? `\n## Not downloaded\n\nThese still load from the original site:\n\n${missing.map((u) => `- ${u}`).join('\n')}\n` : ''}`;
 
-  const files = (built, fetched = {}) => {
+  // [{name, data}] for the project (and the standalone preview and README, which a ZIP gets too).
+  // slug names the clone's asset folder and theme file, so several clones can live in one project.
+  const files = (built, fetched = {}, { slug = null } = {}) => {
+    const comps = [...(built.components || [{ name: built.astroName, path: `${built.astroName}.astro`, code: built.astro }])];
+    slug = kebab(slug || comps[0].name) || 'clone';
+    const dir = `${DIR}/${slug}`;
+    // a picked component without a better name is named after the clone, so several can sit side by side
+    if (comps[0].name === 'Component') {
+      const name = slug.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join('');
+      comps[0] = { ...comps[0], name: /^[A-Z]/.test(name) ? name : `Clone${name}`, path: `${/^[A-Z]/.test(name) ? name : `Clone${name}`}.astro` };
+    }
     const map = new Map(), taken = new Set(), assets = [], missing = [];
     assetUrls(built).forEach((url, n) => {
       let bytes, type;
@@ -109,17 +126,21 @@ ${missing.length ? `\n## Not downloaded\n\nThese still load from the original si
       }
       const name = fileName(url, type, taken, n + 1);
       map.set(url, name);
-      assets.push({ name: `public/${DIR}/${name}`, data: bytes });
+      assets.push({ name: `public/${dir}/${name}`, data: bytes });
     });
-    const comps = built.components || [{ name: built.astroName, path: `${built.astroName}.astro`, code: built.astro }];
+    // the project's own stylesheet imports Tailwind; this file only adds the clone's fonts and tokens
+    const theme = built.themeFile.replace(/^@import "tailwindcss";\s*/, '');
     return [
-      { name: 'index.html', data: replaceAll(built.doc, map, `public/${DIR}/`) },
-      ...comps.map((c) => ({ name: `src/components/${c.path}`, data: replaceAll(c.code, map, `/${DIR}/`) })),
-      { name: 'src/styles/theme.css', data: replaceAll(built.themeFile, map, `/${DIR}/`) },
+      { name: 'index.html', data: replaceAll(built.doc, map, `public/${dir}/`) },
+      ...comps.map((c) => ({ name: `src/components/${c.path}`, data: replaceAll(c.code, map, `/${dir}/`) })),
+      { name: `src/styles/mirrorui/${slug}.css`, data: replaceAll(theme, map, `/${dir}/`) },
       ...assets,
-      { name: 'README.md', data: readme(built, [comps[0].name], missing) },
+      { name: 'README.md', data: readme(comps[0].name, slug, missing) },
     ];
   };
 
-  return { urls, files, DIR };
+  // what a clone is called in a project: the page or component name, or the site for an unnamed component
+  const slugFor = (built, hostname) => (built.astroName === 'Component' ? (hostname || '').replace(/^www\./, '') || 'clone' : built.astroName);
+
+  return { urls, files, kebab, slugFor, DIR };
 })();

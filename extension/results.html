@@ -17,10 +17,14 @@
     <label class="fonts" title="Embeds the page's own font files. Only use fonts you're licensed to use.">
       <input type="checkbox" id="fonts"> Embed original fonts
     </label>
+    <button class="btn" id="zip" title="Astro component, theme, preview HTML, and the images, videos and fonts it uses">Download ZIP</button>
+    <button class="btn" id="folder" title="Save into a different project folder" hidden>Change folder</button>
+    <button class="btn primary" id="save" title="Write the component, its theme and assets into your Astro project folder">Save to project</button>
   </header>
 
   <main>
     <p class="error" id="error" hidden></p>
+    <section class="saved" id="saved" hidden></section>
 
     <section id="compare-section">
       <div class="bar">
@@ -40,6 +44,7 @@
           <button class="btn" data-tab="html" aria-pressed="false">HTML</button>
           <button class="btn" data-tab="theme" aria-pressed="false">theme.css</button>
         </div>
+        <select id="part" class="file-select" title="Component file" hidden></select>
         <div class="actions">
           <button class="btn" id="copy">Copy</button>
           <button class="btn primary" id="download">Download</button>
@@ -50,6 +55,8 @@
   </main>
   <script src="lib/compile.js"></script>
   <script src="lib/stage.js"></script>
+  <script src="lib/zip.js"></script>
+  <script src="lib/package.js"></script>
   <script src="results.js"></script>
 </body>
 </html>
