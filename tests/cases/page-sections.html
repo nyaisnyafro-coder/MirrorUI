@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="_base.css">
+<!-- A whole page (Clone page) inside a framework wrapper div: it splits into Header, Hero, Features and Footer
+     components, with their headings, texts, link labels and targets as props. -->
+<style>
+  body { padding: 0; }
+  header, footer { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #111827; color: #fff; }
+  header a { color: #fff; }
+  .hero { padding: 64px 24px; text-align: center; background: #eef2ff; }
+  .hero h1 { font-size: 40px; margin: 0 0 12px; }
+  .hero .cta { display: inline-block; padding: 10px 18px; background: #4f46e5; color: #fff; border-radius: 8px; text-decoration: none; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 32px 24px; }
+  .card { padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; }
+  .card h3 { margin: 0 0 6px; }
+</style>
+<div id="app">
+  <header><b>Acme</b><a href="/pricing">Pricing</a></header>
+  <main>
+    <section class="hero"><h1>Build faster</h1><p>Everything you need to ship.</p><a class="cta" href="/start">Get started</a></section>
+    <section class="features">
+      <div class="card"><h3>Fast</h3><p>Loads in a blink.</p></div>
+      <div class="card"><h3>Safe</h3><p>Locked down by default.</p></div>
+      <div class="card"><h3>Simple</h3><p>Nothing to configure.</p></div>
+    </section>
+  </main>
+  <footer><span>© Acme</span><a href="/contact">Contact</a></footer>
+</div>

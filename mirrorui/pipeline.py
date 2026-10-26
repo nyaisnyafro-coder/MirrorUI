@@ -18,8 +18,12 @@ async def clone(browser, url, selector, out_dir, viewports=DEFAULT_VIEWPORTS, us
     built = await compile_captures(browser, captures, url, fonts=fonts, fontFiles=font_files)
     html_path = out_dir / 'index.html'
     html_path.write_text(built['doc'], encoding='utf-8')
-    astro_path = out_dir / f'{built["astroName"]}.astro'
-    astro_path.write_text(built['astro'], encoding='utf-8')
+    # a cloned page also has one component per section, in a folder next to it
+    for c in built['components']:
+        path = out_dir / c['path']
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(c['code'], encoding='utf-8')
+    astro_path = out_dir / built['components'][0]['path']
     (out_dir / 'theme.css').write_text(built['themeFile'], encoding='utf-8')
     report = await verify(browser, html_path, out_dir, viewports, replay=replay) if check else {}
     return {'html_path': str(html_path), 'astro_path': str(astro_path), 'fragment': built['fragment'],

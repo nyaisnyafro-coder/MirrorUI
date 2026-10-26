@@ -1,7 +1,7 @@
 // Packs a build into the files of an Astro project, plus a standalone preview, with the images, videos and
 // fonts the clone loads saved next to it instead of hotlinked from the original site:
 //   index.html                       standalone preview (open it straight from the folder)
-//   src/components/<Name>.astro      the component(s)
+//   src/components/<Name>.astro      the component; for a page, its sections in src/components/<name>/
 //   src/styles/theme.css             Tailwind import, @font-face rules and the @theme tokens
 //   public/clone-assets/…            the assets; the code refers to them as /clone-assets/…
 //   README.md                        how to use it, and anything that couldn't be downloaded
@@ -93,7 +93,7 @@ ${components.map((c) => `<${c} />`).join('\n')}
 Images, videos and fonts are in \`public/${DIR}/\`. Only use assets and fonts you have the rights to.
 ${missing.length ? `\n## Not downloaded\n\nThese still load from the original site:\n\n${missing.map((u) => `- ${u}`).join('\n')}\n` : ''}`;
 
-  const files = (built, fetched = {}, { components = null } = {}) => {
+  const files = (built, fetched = {}) => {
     const map = new Map(), taken = new Set(), assets = [], missing = [];
     assetUrls(built).forEach((url, n) => {
       let bytes, type;
@@ -111,13 +111,13 @@ ${missing.length ? `\n## Not downloaded\n\nThese still load from the original si
       map.set(url, name);
       assets.push({ name: `public/${DIR}/${name}`, data: bytes });
     });
-    const comps = components || [[built.astroName, built.astro]];
+    const comps = built.components || [{ name: built.astroName, path: `${built.astroName}.astro`, code: built.astro }];
     return [
       { name: 'index.html', data: replaceAll(built.doc, map, `public/${DIR}/`) },
-      ...comps.map(([name, code]) => ({ name: `src/components/${name}.astro`, data: replaceAll(code, map, `/${DIR}/`) })),
+      ...comps.map((c) => ({ name: `src/components/${c.path}`, data: replaceAll(c.code, map, `/${DIR}/`) })),
       { name: 'src/styles/theme.css', data: replaceAll(built.themeFile, map, `/${DIR}/`) },
       ...assets,
-      { name: 'README.md', data: readme(built, comps.map(([name]) => name), missing) },
+      { name: 'README.md', data: readme(built, [comps[0].name], missing) },
     ];
   };
 

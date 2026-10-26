@@ -45,6 +45,23 @@ def test_case(name):
         assert not re.search(pattern, result['doc']), f'unexpected {pattern}'
 
 
+def test_page_splits_into_section_components():
+    result = run(clone_url((CASES / 'page-sections.html').resolve().as_uri(), 'body', OUTPUT / 'cases' / 'page-sections'))
+    assert_matches(result, 0.005)
+    out = OUTPUT / 'cases' / 'page-sections'
+    page = (out / 'Page.astro').read_text(encoding='utf-8')
+    for name in ('Header', 'Hero', 'Features', 'Footer'):
+        assert f"import {name} from './page/{name}.astro';" in page and f'<{name} />' in page
+        assert (out / 'page' / f'{name}.astro').exists()
+    assert '<main' in page  # the structure around the sections stays in the page
+    hero = (out / 'page' / 'Hero.astro').read_text(encoding='utf-8')
+    for prop in ('title = "Build faster"', 'text = "Everything you need to ship."', 'label = "Get started"', 'href = "file:///'):
+        assert prop in hero, prop
+    assert '{title}' in hero and 'href={href}' in hero
+    features = (out / 'page' / 'Features.astro').read_text(encoding='utf-8')
+    assert 'cards.map((card)' in features
+
+
 def test_preview_has_no_vh_feedback():
     """Previews render in iframes sized to their content: h-screen there must be fixed px, the code keeps it."""
     async def go():

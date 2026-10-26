@@ -879,8 +879,12 @@
   const TEXT_NAMES = { h1: 'title', h2: 'title', h3: 'title', h4: 'title', h5: 'title', h6: 'title', strong: 'title',
     p: 'description', small: 'note', a: 'label', button: 'label', label: 'label', li: 'text', span: 'text' };
 
-  // A value that comes from the loop item instead of being written literally.
-  class Field { constructor(name) { this.name = name; } }
+  // A value that comes from the loop item (or, with prop set, a prop of the component) instead of being
+  // written literally.
+  class Field {
+    constructor(name, prop = false) { this.name = name; this.prop = prop; }
+    ref(item) { return this.prop ? this.name : `${item}.${this.name}`; }
+  }
 
   const camel = (s) => {
     const parts = s.split(/[^a-zA-Z0-9]+/).filter(Boolean);
@@ -899,7 +903,8 @@
     return ['div', 'span'].includes(v.tag) ? 'item' : v.tag;
   };
 
-  const shape = (v) => ('text' in v ? 'T' : 'raw' in v ? 'svg' : `(${v.tag}:${v.kids.map(shape).join(',')})`);
+  const shape = (v) => ('text' in v ? 'T' : 'raw' in v ? 'svg' : 'comp' in v ? `<${v.comp}>`
+    : `(${v.tag}:${v.kids.map(shape).join(',')})`);
 
   function* runs(kids) {
     let i = 0;
@@ -1025,13 +1030,14 @@
   const write = (v, indent = 0, item = null) => {
     const pad = '  '.repeat(indent);
     if ('field' in v) {
-      const expr = `${item}.${v.field.name}`;
+      const expr = v.field.ref(item);
       return v.html ? `<Fragment set:html={${expr}} />` : `{${expr}}`;
     }
     if ('loop' in v) {
       const lp = v.loop;
       return `{${lp.list}.map((${lp.item}) => (\n${pad}  ${write(v.body, indent + 1, lp.item)}\n${pad}))}`;
     }
+    if ('comp' in v) return `<${v.comp} />`;
     if ('text' in v) return escText(v.text);
     if ('raw' in v) return v.raw;
     const tag = v.tag, c = v.cls;
@@ -1042,7 +1048,7 @@
     } else if (c) open += ` class="${c}"`;
     const entries = Object.entries(v.attrs);
     open += attrStr(Object.fromEntries(entries.filter(([, x]) => !(x instanceof Field))));
-    open += entries.filter(([, x]) => x instanceof Field).map(([k, x]) => ` ${k}={${item}.${x.name}}`).join('');
+    open += entries.filter(([, x]) => x instanceof Field).map(([k, x]) => ` ${k}={${x.ref(item)}}`).join('');
     open += '>';
     if (VOID.has(tag)) return open;
     if (!v.kids.length) return open + `</${tag}>`;
@@ -1050,19 +1056,118 @@
     return open + v.kids.map((k) => write(k, indent, item)).join('') + `</${tag}>`;
   };
 
-  const component = (tree, sourceUrl) => {
+  // The component's own content as props, so it can be reused with other copy: headings, paragraphs, link
+  // and button labels and targets, image sources. Only elements holding plain text (an <h1> with an <em>
+  // inside stays as written), outside loops (their items are props already), at most MAX_PROPS.
+  const MAX_PROPS = 24;
+  const PROP_NAMES = { h1: 'title', h2: 'heading', h3: 'heading', h4: 'heading', h5: 'heading', h6: 'heading',
+    p: 'text', a: 'label', button: 'label' };
+
+  class Props {
+    constructor(reserved) { this.names = []; this.values = []; this.taken = new Set(reserved); }
+
+    add(name, value) {
+      const base = name;
+      for (let i = 2; this.taken.has(name); i++) name = `${base}${i}`;
+      this.taken.add(name);
+      this.names.push(name);
+      this.values.push(value);
+      return new Field(name, true);
+    }
+
+    get full() { return this.names.length >= MAX_PROPS; }
+  }
+
+  const propify = (v, props) => {
+    if (!('kids' in v) || 'loop' in v || props.full) return v;
+    const out = { ...v, attrs: { ...v.attrs } };
+    const only = v.kids.length === 1 && 'text' in v.kids[0] && v.kids[0].text.trim() ? v.kids[0].text : null;
+    if (only !== null && PROP_NAMES[v.tag]) {
+      const name = PROP_NAMES[v.tag];
+      out.kids = [{ field: props.add(name, only.trim()) }];
+      if (v.tag === 'a' && typeof v.attrs.href === 'string') out.attrs.href = props.add(name === 'label' ? 'href' : `${name}Href`, v.attrs.href);
+      return out;
+    }
+    if (v.tag === 'img' && typeof v.attrs.src === 'string' && !v.attrs.src.startsWith('data:')) {
+      out.attrs.src = props.add('image', v.attrs.src);
+      if (typeof v.attrs.alt === 'string' && v.attrs.alt) out.attrs.alt = props.add('imageAlt', v.attrs.alt);
+      return out;
+    }
+    out.kids = v.kids.map((k) => propify(k, props));
+    return out;
+  };
+
+  // Clone page: the page's sections (header, hero, sections, footer…) become components of their own that the
+  // page component imports. Found below the wrapper divs frameworks add (#__next, #app), one level into
+  // <main>; the divs next to real sections count as sections too. Fewer than two: no split.
+  const SECTION_TAGS = new Set(['header', 'nav', 'section', 'footer', 'aside', 'article']);
+  const isEl = (k) => k && 'kids' in k;
+  const findSections = (root) => {
+    let box = root;
+    for (let d = 0; d < 6; d++) {
+      const els = box.kids.filter(isEl);
+      if (els.length !== 1 || SECTION_TAGS.has(els[0].tag)) break;
+      box = els[0];
+    }
+    const level = box.kids.filter(isEl).flatMap((k) => (k.tag === 'main' && k.kids.some(isEl) ? k.kids.filter(isEl) : [k]));
+    if (!level.some((k) => SECTION_TAGS.has(k.tag))) return [];
+    const found = level.filter((k) => SECTION_TAGS.has(k.tag) || (k.tag === 'div' && k.kids.some(isEl)));
+    return found.length >= 2 ? found : [];
+  };
+
+  const sectionName = (v, seenHeader, taken) => {
+    const word = { header: 'Header', footer: 'Footer', nav: 'Nav', aside: 'Sidebar' }[v.tag]
+      || (seenHeader && !taken.has('Hero') && hasTag(v, 'h1') ? 'Hero' : '')
+      || (v.hint && !/^\d/.test(v.hint) ? pascal(v.hint.split('--')[0].split('__').pop()) : 'Section');
+    let name = /^[A-Za-z]/.test(word) ? word : 'Section';
+    for (let i = 2, base = name; taken.has(name); i++) name = `${base}${i}`;
+    taken.add(name);
+    return name;
+  };
+  const hasTag = (v, tag) => isEl(v) && (v.tag === tag || v.kids.some((k) => hasTag(k, tag)));
+
+  // One .astro file: [name, code]. Section nodes in `parts` (node -> name) are written as <Name />.
+  const component = (tree, name, sourceUrl, parts = new Map(), dir = '') => {
     const loops = [];
-    const body = write(loopify(tree, loops));
-    let name = tree.hint ? pascal(tree.hint) : 'Component';
-    if (!/^[A-Za-z]/.test(name)) name = 'Component';
+    const swap = (v) => (parts.has(v) ? { comp: parts.get(v) } : isEl(v) ? { ...v, kids: v.kids.map(swap) } : v);
+    const looped = loopify(swap(tree), loops);
+    const props = new Props(loops.flatMap((lp) => [lp.list, lp.item]));
+    const body = write(propify(looped, props));
     const front = [sourceUrl ? `// Generated by MirrorUI from ${sourceUrl}` : '// Generated by MirrorUI'];
+    if (parts.size) front.push([...parts.values()].map((p) => `import ${p} from './${dir}/${p}.astro';`).join('\n'));
     for (const lp of loops) front.push(`interface ${pascal(lp.item)} {\n${lp.tsType()}\n}`);
-    if (loops.length) {
-      front.push(`interface Props {\n${loops.map((lp) => `  ${lp.list}?: ${pascal(lp.item)}[];`).join('\n')}\n}`);
-      const defaults = loops.map((lp) => `  ${lp.list} = ${JSON.stringify(lp.items(), null, 2)}`.replace(/\n/g, '\n  ')).join(',\n');
+    if (loops.length || props.names.length) {
+      front.push(`interface Props {\n${props.names.map((n) => `  ${n}?: string;`)
+        .concat(loops.map((lp) => `  ${lp.list}?: ${pascal(lp.item)}[];`)).join('\n')}\n}`);
+      const defaults = props.names.map((n, i) => `  ${n} = ${JSON.stringify(props.values[i])}`)
+        .concat(loops.map((lp) => `  ${lp.list} = ${JSON.stringify(lp.items(), null, 2)}`.replace(/\n/g, '\n  '))).join(',\n');
       front.push(`const {\n${defaults},\n} = Astro.props;`);
     }
     return [name, '---\n' + front.join('\n\n') + '\n---\n\n' + body + '\n'];
+  };
+
+  // The component, or for a page its sections too: [{name, path, code}], main first; paths are relative to
+  // src/components/.
+  const components = (tree, sourceUrl) => {
+    let name = tree.hint ? pascal(tree.hint) : 'Component';
+    if (!/^[A-Za-z]/.test(name)) name = 'Component';
+    if (tree.hint === 'page') {
+      const host = (() => { try { return new URL(sourceUrl).hostname.replace(/^www\./, '').split('.')[0]; } catch { return ''; } })();
+      if (/^[a-z]/i.test(host)) name = pascal(host) + 'Page';
+    }
+    const sections = tree.hint === 'page' ? findSections(tree) : [];
+    const dir = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    const parts = new Map(), taken = new Set([name]);
+    let seenHeader = false;
+    for (const s of sections) {
+      parts.set(s, sectionName(s, seenHeader, taken));
+      seenHeader = seenHeader || s.tag === 'header' || s.tag === 'nav';
+    }
+    const [, code] = component(tree, name, sourceUrl, parts, dir);
+    return [{ name, path: `${name}.astro`, code }].concat([...parts].map(([node, part]) => {
+      const [, partCode] = component(node, part, sourceUrl);
+      return { name: part, path: `${dir}/${part}.astro`, code: partCode };
+    }));
   };
 
   // ---------------------------------------------------------------- entry point
@@ -1146,9 +1251,9 @@ ${fragment}
 </body>
 </html>
 `;
-    const [astroName, astro] = component(tree, options.sourceUrl || '');
+    const comps = components(tree, options.sourceUrl || '');
     const themeFile = '@import "tailwindcss";\n\n' + (faces ? faces + '\n\n' : '') + themeCss + '\n';
-    return { doc, fragment, theme: themeCss, themeFile, astroName, astro };
+    return { doc, fragment, theme: themeCss, themeFile, astroName: comps[0].name, astro: comps[0].code, components: comps };
   };
 
   globalThis.MirrorUICompile = { build, fontFaces, FONT_TYPES, Theme };

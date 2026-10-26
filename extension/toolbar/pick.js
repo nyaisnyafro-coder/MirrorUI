@@ -135,8 +135,9 @@
     render();
   }
 
+  const part = () => state.built.components[Math.min(state.part || 0, state.built.components.length - 1)];
   const files = () => ({
-    astro: [`${state.built.astroName}.astro`, state.built.astro, 'text/plain'],
+    astro: [part().path.split('/').pop(), part().code, 'text/plain'],
     html: ['index.html', state.built.doc, 'text/html'],
     theme: ['theme.css', state.built.themeFile, 'text/css'],
   });
@@ -185,8 +186,15 @@
     const tabs = Object.entries({ astro: 'Astro', html: 'HTML', theme: 'theme.css' }).map(([k, label]) => button(label, {
       pressed: k === state.tab, onclick: () => { state.tab = k; render(); },
     }));
+    // a cloned page comes as a page component plus one per section
+    let picker = null;
+    if (state.tab === 'astro' && state.built.components.length > 1) {
+      picker = h('select', { class: 'file-select', title: 'Component file' },
+        state.built.components.map((c, i) => h('option', { value: i, selected: i === (state.part || 0) }, c.path)));
+      picker.addEventListener('change', () => { state.part = +picker.value; render(); });
+    }
     const codePane = h('div', { class: 'code-pane', style: { height: `${state.codeHeight}px` } },
-      h('div', { class: 'bar-row2' }, h('div', { class: 'seg' }, tabs), h('div', { class: 'spacer' }),
+      h('div', { class: 'bar-row2' }, h('div', { class: 'seg' }, tabs), picker, h('div', { class: 'spacer' }),
         button('Copy', { icon: 'copy', onclick: () => MUI.copy(files()[state.tab][1]) }),
         button('Download', { icon: 'download', onclick: () => MUI.download(...files()[state.tab]) })),
       h('pre', { text: files()[state.tab][1] }));

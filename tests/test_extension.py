@@ -121,6 +121,21 @@ def test_zip_is_an_astro_project_with_its_assets(toolbar, server):
     assert not re.search(r'data:image/png;base64,[\w+/=]{4096,}', files['src/components/Component.astro'].decode())
 
 
+def test_clone_page_zip_has_section_components(toolbar, server):
+    page = toolbar(f'{server}/tests/cases/page-sections.html')
+    tool(page, 'Clone page')
+    page.locator('mirrorui-root .panel button', has_text='Clone this page').click()
+    modal = page.locator('mirrorui-root .modal')
+    expect(modal.locator('pre')).to_contain_text('<Hero />', timeout=60_000)
+    modal.locator('select.file-select').select_option(label='page/Hero.astro')
+    expect(modal.locator('pre')).to_contain_text('title = "Build faster"')
+    with page.expect_download() as download:
+        modal.locator('button', has_text='Download ZIP').click()
+    with zipfile.ZipFile(download.value.path()) as z:
+        names = set(z.namelist())
+    assert {f'src/components/page/{n}.astro' for n in ('Header', 'Hero', 'Features', 'Footer')} | {'src/components/Page.astro'} <= names
+
+
 def test_clone_page_preview_height_is_stable(toolbar, server):
     page = toolbar(f'{server}/tests/cases/min-h-screen.html')
     tool(page, 'Clone page')

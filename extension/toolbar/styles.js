@@ -78,6 +78,8 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .btn svg.i { width: 14px; height: 14px; }
 .btn:hover { border-color: #7c5cff; }
 .btn.primary { background: #7c5cff; border-color: #7c5cff; color: #fff; }
+.file-select { margin-left: 8px; padding: 5px 8px; border-radius: 8px; border: 1px solid #2e2840; background: #1a1624;
+  color: #ece9f4; font: 600 12px/1.2 system-ui, sans-serif; max-width: 260px; }
 .btn[aria-pressed="true"] { background: #2b2350; border-color: #7c5cff; color: #fff; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.ghost { background: transparent; border-color: transparent; color: #9a93ad; padding: 6px; }
