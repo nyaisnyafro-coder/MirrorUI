@@ -1,6 +1,7 @@
 // Runs inside the target page (injected by the CLI via Playwright, or by the browser extension).
 // Classic script, no dependencies. Defines globalThis.MirrorUIExtract:
 //   freeze() / unfreeze()        stop animations and transitions so styles are read in their final state
+//   settleImages()               load lazy images now; resolves when every image has loaded or failed
 //   extract(selector)            walk the subtree and return the capture (below)
 //   hoverDiff(i)                 styles that changed under a forced state (:hover, :focus, :active), called
 //                                while the runner forces it on the element marked data-mui-hover="i"
@@ -37,12 +38,26 @@
     'box-shadow', 'opacity', 'overflow-x', 'overflow-y', 'object-fit', 'cursor', 'list-style-type', 'visibility',
     'box-sizing', 'resize', 'field-sizing', 'justify-items', 'fill', 'stroke',
     'text-decoration-color', 'text-decoration-thickness', 'text-decoration-style', 'text-underline-offset',
-    'transform', 'scale', 'rotate', 'translate', '-webkit-line-clamp', 'text-overflow',
+    'transform', 'scale', 'rotate', 'translate', '-webkit-line-clamp', 'text-overflow', 'aspect-ratio',
+    'background-clip', '-webkit-text-fill-color', 'background-origin', 'background-attachment', 'mix-blend-mode', 'filter', 'backdrop-filter',
     'outline-style', 'outline-width', 'outline-color', 'outline-offset',
+    // the rest map to Tailwind where it has a class, else to [prop:value] (see EXTRA in compile.js)
+    'grid-template-rows', 'grid-row-start', 'grid-row-end', 'grid-auto-flow', 'grid-auto-rows', 'grid-auto-columns',
+    'align-content', 'justify-self', 'vertical-align', 'object-position', 'isolation', 'transform-origin',
+    'text-wrap-style', 'text-shadow', 'text-indent', 'word-spacing', 'word-break', 'overflow-wrap', 'hyphens',
+    'font-feature-settings', 'font-variation-settings', 'font-variant-numeric', 'font-stretch',
+    'clip-path', 'mask-image', 'mask-size', 'mask-position', 'mask-repeat', 'mask-composite', 'mask-mode', 'mask-origin',
+    'mask-clip', 'stroke-width',
+    'list-style-position', 'border-collapse', 'border-spacing', 'table-layout', 'column-count', 'writing-mode',
+    '-webkit-text-stroke-width', '-webkit-text-stroke-color', 'perspective', 'backface-visibility',
   ];
   const INHERITED = new Set([
     'color', 'font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing',
     'text-align', 'text-transform', 'white-space', 'cursor', 'list-style-type', 'visibility', 'text-underline-offset',
+    '-webkit-text-fill-color', 'text-wrap-style', 'text-shadow', 'text-indent', 'word-spacing', 'word-break',
+    'overflow-wrap', 'hyphens', 'font-feature-settings', 'font-variation-settings', 'font-variant-numeric',
+    'font-stretch', 'list-style-position', 'border-collapse', 'border-spacing', 'writing-mode',
+    '-webkit-text-stroke-width', '-webkit-text-stroke-color', 'stroke-width',
   ]);
   // what hover can change without it being layout noise
   const HOVER_PROPS = PROPS.filter((p) => !['width', 'height', 'top', 'right', 'bottom', 'left'].includes(p));
@@ -50,7 +65,7 @@
   const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'LINK', 'META', 'SOURCE', 'TRACK']);
   const ATTRS = ['href', 'src', 'alt', 'title', 'type', 'name', 'placeholder', 'role', 'for', 'target', 'rel',
     'datetime', 'colspan', 'rowspan', 'poster', 'autoplay', 'muted', 'loop', 'playsinline', 'controls',
-    'required', 'disabled', 'rows', 'cols', 'method'];
+    'required', 'disabled', 'rows', 'cols', 'method', 'value'];
   const HOVER_TAGS = new Set(['a', 'button', 'label', 'summary', 'select', 'input', 'textarea']);
   const UTILITY = /^(flex|grid|block|inline|hidden|contents|relative|absolute|fixed|sticky|static|container|group|peer|isolate|truncate|italic|uppercase|lowercase|capitalize|underline|shadow|rounded|border|transition|antialiased|visible|invisible|grow|shrink|row|col|wrapper|inner|outer|content|main|clearfix|(min|max|space|gap|text|font|bg|leading|tracking|overflow|items|justify|self|place|object|order|origin|translate|scale|rotate|opacity|backdrop|blur|ring|outline|cursor|select|pointer|whitespace|break|line|list|aspect|inset|top|left|right|bottom|z|duration|ease|delay|animate|sr|not|lg|md|sm|xl|rounded|border|shadow|flex|grid|col|row|divide|fill|stroke|from|via|to|decoration|underline|transition|hover|focus|group|peer|dark|basis|content|columns|snap|scroll|touch|will|drop|filter|mix|isolation|indent|align|first|last|odd|even|before|after|placeholder)-.*)$/;
   const MAX_HOVER = 80;
@@ -86,6 +101,17 @@
     return out;
   };
 
+  // Lazy images load all at once, and the promise settles when every image has loaded or failed (no timers:
+  // a test's paused page clock would stop them; the runner bounds the wait).
+  const settleImages = () => {
+    const imgs = [...document.images];
+    for (const img of imgs) if (img.loading === 'lazy') img.loading = 'eager';
+    return Promise.all(imgs.map((img) => (img.complete ? null : new Promise((done) => {
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+    })))).then(() => imgs.length);
+  };
+
   const freeze = () => {
     if (document.getElementById('mirrorui-freeze')) return;
     const st = document.createElement('style');
@@ -118,8 +144,36 @@
   };
 
   // <use href="#icon"> points at a sprite elsewhere in the page; copy the symbol in so the SVG stands alone
+  // SVG attributes and inline styles written with the page's CSS variables (fill="hsl(var(--brand) / .1)") are
+  // resolved to their computed values: the clone doesn't have those variables.
+  const SVG_PAINT = { fill: 'fill', stroke: 'stroke', 'stop-color': 'stop-color', 'flood-color': 'flood-color',
+    color: 'color', opacity: 'opacity', 'fill-opacity': 'fill-opacity', 'stroke-opacity': 'stroke-opacity',
+    'stop-opacity': 'stop-opacity', 'stroke-width': 'stroke-width' };
+  const resolveVars = (live, copy) => {
+    const lives = [live, ...live.querySelectorAll('*')], copies = [copy, ...copy.querySelectorAll('*')];
+    lives.forEach((el, k) => {
+      const c = copies[k];
+      if (!c) return;
+      let cs = null;
+      for (const { name, value } of [...el.attributes]) {
+        if (!value.includes('var(')) continue;
+        cs = cs || getComputedStyle(el);
+        if (SVG_PAINT[name]) c.setAttribute(name, cs.getPropertyValue(SVG_PAINT[name]));
+        else if (name === 'style') {
+          c.setAttribute('style', value.split(';').map((decl) => {
+            const at = decl.indexOf(':');
+            if (at < 0 || !decl.includes('var(')) return decl;
+            const prop = decl.slice(0, at).trim();
+            return `${prop}:${cs.getPropertyValue(prop)}`;
+          }).join(';'));
+        }
+      }
+    });
+  };
+
   const inlineSprites = (svg) => {
     const copy = svg.cloneNode(true);
+    resolveVars(svg, copy);
     for (const use of copy.querySelectorAll('use')) {
       const ref = use.getAttribute('href') || use.getAttribute('xlink:href') || '';
       const target = ref.startsWith('#') && document.getElementById(ref.slice(1));
@@ -142,6 +196,7 @@
     for (const { name, value } of el.attributes) if (name.startsWith('aria-')) a[name] = value;
     if (a.href !== undefined && el.href && !a.href.startsWith('#')) a.href = el.href;
     if (el.currentSrc || (a.src !== undefined && el.src)) a.src = el.currentSrc || el.src;
+    if (a.poster) a.poster = new URL(a.poster, location.href).href;
     return Object.entries(a);
   };
 
@@ -261,7 +316,11 @@
       const s = snapshot(cs);
       state.base[i] = s;
       const base = baseline(tag);
-      const k = PROPS.filter((p) => s[p] !== (INHERITED.has(p) ? (parentStyles || bodyBase)[p] : base[p]));
+      // An inherited value is written where it changes, and also where the tag has a default of its own that
+      // it overrides: <strong> is bolder and <code> monospace in the clone unless told otherwise.
+      const k = PROPS.filter((p) => (INHERITED.has(p)
+        ? s[p] !== (parentStyles || bodyBase)[p] || (base[p] !== bodyBase[p] && s[p] !== base[p])
+        : s[p] !== base[p]));
       // min-width/min-height default to auto for flex and grid items, not 0 as in the (block) baseline: the
       // ubiquitous min-w-0 that stops a flex child from growing with its content would otherwise be dropped
       const contextDefault = /flex|grid/.test(parentDisplay) ? 'auto' : '0px';
@@ -284,8 +343,6 @@
         x: r.x,
       };
       if (parseFloat(transitions[i]['transition-duration']) > 0) n.tr = transitions[i];
-      // a transform written into the inline style is almost always JS animation caught mid-flight: not design
-      if (el.style.transform || el.style.translate) n.jt = true;
       if (!['inline', 'none', 'contents'].includes(s.display)) {
         const before = boxes(el);
         if (REPLACED.has(tag)) {
@@ -300,6 +357,17 @@
           const grid = /grid/.test(parentDisplay), column = pdir.startsWith('column');
           n.fw = sameWith(el, 'width', before, 'auto', grid || column ? sibs : []);
           n.fh = sameWith(el, 'height', before, 'auto', grid || !column ? sibs : []);
+          // width and height can vouch for each other too (a square icon box: either one gives back the other)
+          if (n.fw && n.fh && !sameWith(el, { width: 'auto', height: 'auto' }, before)) n.fw = n.fh = false;
+          // the parent is as wide as this child makes it (shrink-wrapped): then the width can't be a percentage
+          // of the parent, w-full there would be circular
+          if (!n.fw && el.parentElement) {
+            const parentWidth = () => el.parentElement.getBoundingClientRect().width;
+            const was = parentWidth(), old = el.style.getPropertyValue('width'), pri = el.style.getPropertyPriority('width');
+            el.style.setProperty('width', '1px', 'important');
+            n.pf = Math.abs(parentWidth() - was) > 0.5;
+            if (old) el.style.setProperty('width', old, pri); else el.style.removeProperty('width');
+          }
         }
         // margin:auto shows up as px in computed style. It was auto if setting auto changes nothing while
         // both 0 and a larger margin do: an auto margin holds exactly the free space, whereas a margin
@@ -315,7 +383,21 @@
             && !sameWith(el, p, before, `${parseFloat(s[p]) + 16}px`))
           .map(([key]) => key).join('');
         // positioned elements report auto insets as px too
-        if (s.position !== 'static') n.ia = INSETS.filter((p) => sameWith(el, p, before));
+        // (top:0 and bottom:0 with a full height each look auto alone, the other one still pinning the box: an
+        // axis whose two insets both look auto is tested with both auto at once)
+        if (s.position !== 'static') {
+          let ia = INSETS.filter((p) => sameWith(el, p, before));
+          for (const [a, b] of [['top', 'bottom'], ['left', 'right']]) {
+            if (ia.includes(a) && ia.includes(b) && !sameWith(el, { [a]: 'auto', [b]: 'auto' }, before)) ia = ia.filter((p) => p !== a && p !== b);
+          }
+          // and everything that looked auto (insets, width, height) together: left/right:0 and width:100% vouch
+          // for each other too. If that moves the box, the insets stay written out, like inset-0 overlays.
+          const all = Object.fromEntries(ia.map((p) => [p, 'auto']));
+          if (n.fw) all.width = 'auto';
+          if (n.fh) all.height = 'auto';
+          if (ia.length && !sameWith(el, all, before)) ia = [];
+          n.ia = ia;
+        }
       }
       if (tag === 'input' || tag === 'textarea') {
         n.ph = getComputedStyle(el, '::placeholder').getPropertyValue('color');
@@ -340,6 +422,12 @@
         if (snap) n.snap = snap;
         else if (r.width >= 1 && r.height >= 1) { el.setAttribute('data-mui-canvas', i); n.cv = true; }
       }
+      if (tag === 'video') {
+        // the frame on screen becomes the poster, so the clone shows it before (and without) playing
+        const frame = videoFrame(el);
+        if (frame) n.snap = frame;
+        else if (r.width >= 1 && r.height >= 1) { el.setAttribute('data-mui-canvas', i); n.cv = true; }
+      }
       const pb = pseudo(el, '::before', s, s.display);
       const pa = pseudo(el, '::after', s, s.display);
       if (pb) n.pb = pb;
@@ -350,8 +438,11 @@
         if (child.nodeType === Node.TEXT_NODE) {
           const text = pre ? child.textContent : child.textContent.replace(/\s+/g, ' ');
           if (text.trim()) n.c.push({ text });
+          else if (pre && text) n.c.push({ text }); // line breaks between the lines of a code block
           else if (text && n.c.length) n.c.push({ text: ' ' });
-        } else if (child.nodeType === Node.ELEMENT_NODE && !SKIP.has(child.tagName)) {
+        } else if (child.nodeType === Node.ELEMENT_NODE && !SKIP.has(child.tagName)
+                   // detached by the page's own scripts meanwhile: no styles to read
+                   && getComputedStyle(child).display) {
           n.c.push(walk(child, s, childDisplay));
         }
       }
@@ -402,6 +493,18 @@
       const px = g.getImageData(0, 0, probe.width, probe.height).data;
       for (let k = 3; k < px.length; k += 4) if (px[k]) return el.toDataURL('image/png');
     } catch { /* tainted */ }
+    return null;
+  };
+
+  const videoFrame = (el) => {
+    try {
+      if (el.readyState < 2 || !el.videoWidth) return null;
+      const c = document.createElement('canvas');
+      c.width = el.videoWidth;
+      c.height = el.videoHeight;
+      c.getContext('2d').drawImage(el, 0, 0);
+      return c.toDataURL('image/jpeg', 0.92);
+    } catch { /* cross-origin video */ }
     return null;
   };
 
@@ -463,6 +566,6 @@
   };
 
   globalThis.MirrorUIExtract = {
-    freeze, unfreeze, extract, hoverDiff, isolate, unisolate, hideOverlays, restoreOverlays, cleanup, inlineSprites, fontSources,
+    freeze, unfreeze, settleImages, extract, hoverDiff, isolate, unisolate, hideOverlays, restoreOverlays, cleanup, inlineSprites, fontSources,
   };
 })();

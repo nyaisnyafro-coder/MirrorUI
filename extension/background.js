@@ -172,6 +172,8 @@ async function capture(tabId) {
   try {
     await chrome.scripting.executeScript({ target: { tabId }, files: ['lib/extract.js'] });
     await run(tabId, () => MirrorUIExtract.freeze());
+    // lazy images load now, so the screenshots show them (bounded: a broken image server mustn't stall us)
+    await run(tabId, () => Promise.race([MirrorUIExtract.settleImages(), new Promise((r) => setTimeout(r, 8000))]));
     for (const width of widths) {
       chrome.tabs.sendMessage(tabId, { type: 'capture-progress', width }).catch(() => {});
       await emulate(tabId, { width, height: VIEWPORT_HEIGHT, mobile: false });

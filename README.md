@@ -218,7 +218,7 @@ Paketleme öncesi manifest'in andığı her dosyanın varlığı, ikon boyutlar�
 ## Bilinen sınırlar
 
 - Hover, focus ve active yalnızca en geniş viewport'ta okunur; focus/active yalnızca elemanın kendisindeki değişiklikler için.
-- JavaScript'in satır içi yazdığı transform'lar (animasyonlar) atlanır.
+- JavaScript animasyonları, yakalandıkları andaki halleriyle donmuş olarak gelir (ör. kayan bir slider o anki slaytında).
 - Hover adayları başka alan adından yüklenen CSS'te tanımlıysa tahminle bulunur (link, buton, `cursor: pointer`).
 - Yüksekliğini satırdaki komşusundan alan bir eleman tek başına alınırsa, o yükseklik `min-h` olarak korunur.
 - Bazı genişliklerde `display: contents` olan bir eleman seçilirse, o genişlikte üst elemanının düzenine bağlıdır ve tek başına aynı görünmez. Bunun yerine bir üst elemanı seç.

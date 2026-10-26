@@ -52,6 +52,10 @@ async def verify(browser: Browser, target, out_dir, viewports, label='clone', re
             except PWTimeout:
                 pass  # remote images still trickling in; compare what's there
             await page.evaluate('document.fonts.ready.then(() => true)')
+            # videos held on their poster (the frame the original showed), so the comparison doesn't depend on
+            # how far they played
+            await page.evaluate("""() => document.querySelectorAll('video').forEach((v) => {
+                v.pause(); v.removeAttribute('src'); v.querySelectorAll('source').forEach((s) => s.remove()); v.load(); })""")
             clone_shot = out_dir / f'{label}-{width}.png'
             box = await page.evaluate("""() => { const r = document.querySelector('#mirrorui-frame > *').getBoundingClientRect();
                 return { x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height }; }""")

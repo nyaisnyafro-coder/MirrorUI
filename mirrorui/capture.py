@@ -167,6 +167,10 @@ async def capture_viewport(browser: Browser, url, selector, width, shot_path=Non
         await page.add_script_tag(content=EXTRACT_JS)
         await page.evaluate('MirrorUIExtract.freeze()')
         await scroll_through(page, replay)
+        try:  # lazy images: in the screenshot of the original too
+            await asyncio.wait_for(page.evaluate('MirrorUIExtract.settleImages()'), 10)
+        except asyncio.TimeoutError:
+            pass
         await page.evaluate('document.fonts.ready.then(() => true)')
         el = page.locator(selector).first
         if await el.count() == 0:

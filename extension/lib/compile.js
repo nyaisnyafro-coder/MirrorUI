@@ -8,7 +8,7 @@
   const pyRound = (x) => (Math.abs(x % 1) === 0.5 ? 2 * Math.round(x / 2) : Math.round(x));
 
   const px = (v) => {
-    const m = /^(-?[\d.]+)px$/.exec((v || '').trim());
+    const m = /^(-?[\d.]+(?:e[+-]?\d+)?)px$/i.exec((v || '').trim()); // (huge radii come as 3.35544e+07px)
     return m ? parseFloat(m[1]) : null;
   };
 
@@ -174,6 +174,19 @@
     return cls(prefix, space(value));
   };
 
+  // grid-column / grid-row placement: col-span-2, col-span-full, col-start-2 col-end-4, else arbitrary
+  const gridPlace = (prefix, axis, start, end) => {
+    const span = (v) => /^span (\d+)$/.exec(v || '');
+    const line = (v) => /^-?\d+$/.test(v || '');
+    if (start === 'auto' && end === 'auto') return `${prefix}-auto`;
+    if (start === '1' && end === '-1') return `${prefix}-span-full`;
+    if (start === 'auto' && span(end)) return `${prefix}-span-${span(end)[1]}`;
+    if (end === 'auto' && span(start)) return `${prefix}-span-${span(start)[1]}`;
+    const one = (side, v) => (v === 'auto' ? null
+      : line(v) ? cls(`${prefix}-${side}`, v) : `[grid-${axis}-${side}:${arb(v)}]`);
+    return [one('start', start), one('end', end)].filter(Boolean).join(' ') || `${prefix}-auto`;
+  };
+
   // Computed shadows read "rgba(0, 0, 0, 0.1) 0px 1px 3px 0px inset"; Tailwind only recognises an arbitrary
   // shadow written the usual way round ("inset 0px 1px 3px 0px rgba(…)") and silently drops the other.
   const shadowValue = (v) => v.split(/,(?![^(]*\))/).map((one) => {
@@ -292,9 +305,17 @@
       } else put(side, cls(side, space(v) || `[${arb(v)}]`));
     }
     if (has('z-index')) put('z-index', s['z-index'] === 'auto' ? 'z-auto' : cls('z', s['z-index']));
-    if (has('transform') && !n.jt) put('transform', transformClass(s.transform, n));
+    if (has('aspect-ratio')) {
+      // computed as "1 / 1", "auto 16 / 9" (replaced elements: the natural ratio wins when there is one) or "auto"
+      const v = s['aspect-ratio'], m = /^(auto )?([\d.]+) \/ ([\d.]+)$/.exec(v);
+      const ratio = m && `${num(+m[2])}/${num(+m[3])}`;
+      put('aspect-ratio', v === 'auto' ? 'aspect-auto' : !m ? `aspect-[${arb(v)}]`
+        : m[1] ? `[aspect-ratio:auto_${num(+m[2])}/${num(+m[3])}]`
+          : ratio === '1/1' ? 'aspect-square' : ratio === '16/9' ? 'aspect-video' : `aspect-[${ratio}]`);
+    }
+    if (has('transform')) put('transform', transformClass(s.transform, n));
     for (const p of ['scale', 'rotate', 'translate']) {
-      if (has(p) && s[p] && !n.jt) put(p, individualTransform(p, s[p], n));
+      if (has(p) && s[p]) put(p, individualTransform(p, s[p], n));
     }
     if (has('overflow-x') || has('overflow-y')) {
       const x = s['overflow-x'], y = s['overflow-y'];
@@ -347,18 +368,18 @@
       else c = `grid-cols-[${arb(v)}]`;
       put('grid-template-columns', c);
     }
-    if (has('grid-column-end') || has('grid-column-start')) {
-      const m = /^span (\d+)$/.exec(s['grid-column-end']) || /^span (\d+)$/.exec(s['grid-column-start']);
-      const def = !keep.has('grid-column-end') && !keep.has('grid-column-start');
-      if (m) out['col-span'] = [`col-span-${m[1]}`, def];
-      else if (s['grid-column-start'] === '1' && s['grid-column-end'] === '-1') out['col-span'] = ['col-span-full', def];
+    for (const [axis, prefix] of [['column', 'col'], ['row', 'row']]) {
+      const a = `grid-${axis}-start`, b = `grid-${axis}-end`;
+      if (!has(a) && !has(b)) continue;
+      out[`${prefix}-place`] = [gridPlace(prefix, axis, s[a], s[b]), !keep.has(a) && !keep.has(b)];
     }
 
     // --- sizing: width/height only when they actually constrain the box (rect sizes are border-box)
     const vh = vp.vh;
     if (has('width')) {
       // a fixed element's width is relative to the viewport, anything else's to its parent
-      const widthBase = s.position === 'fixed' ? vp.vcw || vp.vw : parent && parent.cw;
+      // (and not a percentage of a parent that is only as wide as its content: w-full there is circular)
+      const widthBase = s.position === 'fixed' ? vp.vcw || vp.vw : parent && !n.pf && parent.cw;
       out.width = n.fw ? ['w-auto', true] : [sizeClass('w', `${n.w}px`, widthBase, vh, false), false];
     }
     if (has('height')) {
@@ -397,7 +418,9 @@
     if (sides.m && !n.ma) {
       const ml = px(s['margin-left']), mr = px(s['margin-right']);
       const constrained = !n.fw || s['max-width'] !== 'none';
-      if (ml !== null && near(ml, mr) && (ml > 0.5 || s['max-width'] !== 'none') && constrained
+      // with zero margins only when it fills its parent: anything narrower would move to the centre
+      const fills = parent && parent.cw !== undefined && near(n.w, parent.cw, 0.5);
+      if (ml !== null && near(ml, mr) && (ml > 0.5 || (s['max-width'] !== 'none' && fills)) && constrained
           && s.display === 'block' && ['block', 'flow-root', 'list-item'].includes(pdisp)) {
         sides.m.l = ['auto', false];
         sides.m.r = ['auto', false];
@@ -528,7 +551,31 @@
     }
     if (has('background-repeat')) {
       put('background-repeat', { 'no-repeat': 'bg-no-repeat', repeat: 'bg-repeat', 'repeat-x': 'bg-repeat-x',
-        'repeat-y': 'bg-repeat-y' }[s['background-repeat']] || 'bg-repeat');
+        'repeat-y': 'bg-repeat-y' }[s['background-repeat']] || `[background-repeat:${arb(s['background-repeat'])}]`);
+    }
+    // gradient text: background-clip: text with a transparent fill
+    const BOXES = { 'border-box': 'border', 'padding-box': 'padding', 'content-box': 'content' };
+    if (has('background-clip')) {
+      const v = s['background-clip'];
+      put('background-clip', v === 'text' ? 'bg-clip-text' : BOXES[v] ? `bg-clip-${BOXES[v]}` : `[background-clip:${arb(v)}]`);
+    }
+    if (has('background-origin')) {
+      const v = s['background-origin'];
+      put('background-origin', BOXES[v] ? `bg-origin-${BOXES[v]}` : `[background-origin:${arb(v)}]`);
+    }
+    if (has('background-attachment')) {
+      const v = s['background-attachment'];
+      put('background-attachment', ['fixed', 'local', 'scroll'].includes(v) ? `bg-${v}` : `[background-attachment:${arb(v)}]`);
+    }
+    if (has('-webkit-text-fill-color') && s['-webkit-text-fill-color'] !== s.color) {
+      const v = s['-webkit-text-fill-color'];
+      put('-webkit-text-fill-color', `[-webkit-text-fill-color:${v === 'rgba(0, 0, 0, 0)' ? 'transparent' : arb(v)}]`);
+    }
+    if (has('mix-blend-mode')) put('mix-blend-mode', `mix-blend-${s['mix-blend-mode']}`);
+    if (has('filter')) put('filter', s.filter === 'none' ? 'filter-none' : `[filter:${arb(s.filter)}]`);
+    if (has('backdrop-filter')) {
+      const v = s['backdrop-filter'];
+      put('backdrop-filter', v === 'none' ? 'backdrop-filter-none' : `[backdrop-filter:${arb(v)}]`);
     }
     // outlines, only where one is drawn: outline-color follows the text color everywhere else
     if (has('outline-style')) {
@@ -559,8 +606,66 @@
     if (has('resize')) {
       put('resize', { none: 'resize-none', both: 'resize', vertical: 'resize-y', horizontal: 'resize-x' }[s.resize] || 'resize');
     }
+    for (const [prop, named] of EXTRA) {
+      if (!has(prop) || !s[prop]) continue;
+      const v = s[prop], c = named ? named(v, s, n) : null;
+      if (c !== false) put(prop, c || `[${prop}:${arb(v)}]`); // false: not drawn, leave it out
+    }
+    // transform-origin is computed in px, so it differs for every box: only where something is transformed and
+    // the origin isn't the centre
+    const transformed = ['transform', 'rotate', 'scale'].some((p) => s[p] && s[p] !== 'none');
+    const [ox, oy] = (s['transform-origin'] || '').split(' ').map(px);
+    if (transformed && ox !== null && oy !== undefined && !(near(ox, n.w / 2, 0.5) && near(oy, n.h / 2, 0.5))) {
+      put('transform-origin', `origin-[${arb(s['transform-origin'])}]`);
+    }
     return [out, sides];
   };
+
+  // More properties: [prop, (value, styles, node) -> Tailwind class, null for [prop:value], false for nothing]
+  const EXTRA = [
+    ['grid-template-rows', (v) => (v === 'none' ? 'grid-rows-none' : `grid-rows-[${arb(v)}]`)],
+    ['grid-auto-flow', (v) => ({ row: 'grid-flow-row', column: 'grid-flow-col', dense: 'grid-flow-dense',
+      'row dense': 'grid-flow-row-dense', 'column dense': 'grid-flow-col-dense' }[v])],
+    ['grid-auto-rows', (v) => (v === 'auto' ? 'auto-rows-auto' : `auto-rows-[${arb(v)}]`)],
+    ['grid-auto-columns', (v) => (v === 'auto' ? 'auto-cols-auto' : `auto-cols-[${arb(v)}]`)],
+    ['align-content', (v) => ({ normal: 'content-normal', center: 'content-center', 'flex-start': 'content-start',
+      start: 'content-start', 'flex-end': 'content-end', end: 'content-end', 'space-between': 'content-between',
+      'space-around': 'content-around', 'space-evenly': 'content-evenly', stretch: 'content-stretch' }[v])],
+    ['justify-self', (v) => ({ auto: 'justify-self-auto', start: 'justify-self-start', end: 'justify-self-end',
+      center: 'justify-self-center', stretch: 'justify-self-stretch' }[v])],
+    ['vertical-align', (v) => (['baseline', 'top', 'middle', 'bottom', 'text-top', 'text-bottom', 'sub', 'super'].includes(v)
+      ? `align-${v}` : null)],
+    ['object-position', (v) => ({ '50% 50%': 'object-center', '50% 0%': 'object-top', '50% 100%': 'object-bottom',
+      '0% 50%': 'object-left', '100% 50%': 'object-right' }[v])],
+    ['isolation', (v) => (v === 'isolate' ? 'isolate' : 'isolation-auto')],
+    ['text-wrap-style', (v) => ({ balance: 'text-balance', pretty: 'text-pretty', auto: 'text-wrap' }[v])],
+    ['text-shadow', (v) => (v === 'none' ? 'text-shadow-none' : null)],
+    ['text-indent'], ['word-spacing'],
+    ['word-break', (v) => ({ 'break-all': 'break-all', 'keep-all': 'break-keep', normal: 'break-normal' }[v])],
+    ['overflow-wrap', (v) => ({ anywhere: 'wrap-anywhere', 'break-word': 'wrap-break-word', normal: 'wrap-normal' }[v])],
+    ['hyphens', (v) => ({ none: 'hyphens-none', manual: 'hyphens-manual', auto: 'hyphens-auto' }[v])],
+    ['font-feature-settings'], ['font-variation-settings'],
+    ['font-variant-numeric', (v) => ({ 'tabular-nums': 'tabular-nums', 'oldstyle-nums': 'oldstyle-nums',
+      'lining-nums': 'lining-nums', 'proportional-nums': 'proportional-nums', normal: 'normal-nums' }[v])],
+    ['font-stretch'],
+    ['clip-path'], ['mask-image'], ['mask-size'], ['mask-position'], ['mask-repeat'],
+    // Chrome reports the -webkit- keywords, which the standard property doesn't take
+    ['mask-composite', (v) => `[mask-composite:${v.split(', ').map((k) => ({ 'source-over': 'add', 'destination-over': 'add',
+      'source-in': 'intersect', 'destination-in': 'intersect', 'source-out': 'subtract', xor: 'exclude' }[k] || k)).join(',')}]`],
+    ['mask-mode'],
+    ['mask-origin'], ['mask-clip'],
+    ['stroke-width', (v) => (/^\d+px$/.test(v) ? `stroke-${parseInt(v, 10)}` : null)],
+    ['list-style-position', (v) => `list-${v}`],
+    ['border-collapse', (v) => `border-${v}`],
+    ['border-spacing'],
+    ['table-layout', (v) => (v === 'fixed' ? 'table-fixed' : 'table-auto')],
+    ['column-count', (v) => (v === 'auto' ? 'columns-auto' : /^\d+$/.test(v) ? `columns-${v}` : null)],
+    ['writing-mode'], ['-webkit-text-stroke-width'],
+    // follows the text colour like the fill colour: only where a stroke is drawn
+    ['-webkit-text-stroke-color', (v, s) => (parseFloat(s['-webkit-text-stroke-width']) ? null : false)],
+    ['perspective', (v) => (v === 'none' ? 'perspective-none' : null)],
+    ['backface-visibility', (v) => `backface-${v}`],
+  ];
 
   const collectColors = (n, props, theme) => {
     const s = n.s;
@@ -594,13 +699,94 @@
     return props;
   };
 
-  // Children aligned across viewports, or just the base viewport's if the DOM differs.
+  // Children aligned across viewports: [groups, how many viewports they cover, how]. 'same' children, children
+  // 'moved' by a script, the same 'shape' with other content, or 'none' (only the base viewport's).
   const aligned = (nodes) => {
     const kids = nodes.map((n) => n.c || []);
     const same = kids.every((k) => k.length === kids[0].length
       && k.every((b, i) => ('text' in kids[0][i]) === ('text' in b) && kids[0][i].t === b.t));
-    if (same) return [kids[0].map((_, i) => kids.map((k) => k[i])), nodes.length];
-    return [kids[0].map((c) => [c]), 1];
+    // same shape can still be other children in each place (all the slides of a carousel are divs)
+    const identical = same && kids.every((k) => k.every((b, i) => signature(b) === signature(kids[0][i])));
+    const moved = !identical && reordered(nodes, kids);
+    if (moved) return [moved, nodes.length, 'moved'];
+    if (same) return [kids[0].map((_, i) => kids.map((k) => k[i])), nodes.length, identical ? 'same' : 'shape'];
+    return [kids[0].map((c) => [c]), 1, 'none'];
+  };
+
+  // The children to render, as runs of viewports: [{from, to, groups}]. Usually one run over all of them. When a
+  // site serves other markup at some widths (a mobile layout of its own), each run of widths with the same
+  // children gets its own copy, shown only at those widths (see render).
+  const childRuns = (nodes) => {
+    const [groups, k, how] = aligned(nodes);
+    const one = [{ from: 0, to: k - 1, groups }];
+    // only where the children themselves differ (other elements, another number of them); a difference deeper
+    // down is handled there, so copies stay as small as they can be
+    if (how !== 'none' || nodes.length < 2) return one;
+    // only between boxes: copies of inline text would need wrappers
+    const forkable = nodes.every((n) => !/^(inline|contents)/.test(n.s.display) && n.s.display !== 'none')
+      && nodes.every((n) => (n.c || []).every((c) => !('text' in c) || !c.text.trim()));
+    if (!forkable) return one;
+    const seq = nodes.map((n) => (n.c || []).filter((c) => !('text' in c)).map((c) => c.t).join(' '));
+    const runs = [];
+    for (let from = 0, v = 1; v <= nodes.length; v++) {
+      if (v === nodes.length || seq[v] !== seq[from]) { runs.push([from, v - 1]); from = v; }
+    }
+    if (runs.length === 1) return one;
+    return runs.map(([from, to]) => ({ from, to, groups: aligned(nodes.slice(from, to + 1))[0] }));
+  };
+
+  const DISPLAY_CLASS = { block: 'block', flex: 'flex', grid: 'grid', 'inline-block': 'inline-block',
+    'inline-flex': 'inline-flex', 'inline-grid': 'inline-grid', inline: 'inline', table: 'table', 'flow-root': 'flow-root',
+    'list-item': 'list-item', contents: 'contents', 'table-row': 'table-row', 'table-cell': 'table-cell' };
+
+  // A copy of children for the widths from..to of `count`: hidden below and above them.
+  const onlyAt = (v, from, to, count, display, bps) => {
+    if ('text' in v) return v;
+    const extra = [];
+    if (from > 0) extra.push('hidden', `${bps[from]}${DISPLAY_CLASS[display] || 'block'}`);
+    if (to < count - 1) extra.push(`${bps[to + 1]}hidden`);
+    if ('raw' in v) {
+      const raw = /^<svg[^>]*\sclass="/.test(v.raw) ? v.raw.replace(/^(<svg[^>]*\sclass=")/, `$1${extra.join(' ')} `)
+        : v.raw.replace('<svg', `<svg class="${extra.join(' ')}"`);
+      return { ...v, raw };
+    }
+    return { ...v, cls: [v.cls, ...extra].filter(Boolean).join(' ') };
+  };
+
+  // What an element shows: tag, text and link targets, to recognise it again at another width.
+  const signature = (n) => {
+    if ('text' in n) return n.text.trim();
+    if (n._sig === undefined) {
+      // (not src: responsive images load another file at each width)
+      const attrs = (n.a || []).filter(([k]) => k === 'href').map(([, v]) => v).join(' ');
+      n._sig = `<${n.t} ${attrs}>${(n.c || []).map(signature).join('')}`;
+    }
+    return n._sig;
+  };
+
+  // A carousel moved by its script: the same children in another order at some widths (Swiper's loop mode
+  // re-appends slides). In a flex or grid parent they're paired by what they show, and each one's place at
+  // each width is kept as its _ord, which becomes order-N there (see classList).
+  const reordered = (nodes, kids) => {
+    if (!nodes.every((n) => /flex|grid/.test(n.s.display))) return null;
+    const els = kids.map((k) => k.filter((c) => !('text' in c)));
+    if (kids.some((k, v) => k.length - els[v].length !== k.filter((c) => 'text' in c && !c.text.trim()).length)) return null;
+    if (els.some((e) => e.length !== els[0].length) || els[0].length < 2) return null;
+    const groups = els[0].map((c) => [c]);
+    for (let v = 1; v < els.length; v++) {
+      const free = new Map();
+      els[v].forEach((c, pos) => {
+        const s = signature(c);
+        free.set(s, (free.get(s) || []).concat(pos));
+      });
+      for (const g of groups) {
+        const pos = (free.get(signature(g[0])) || []).shift();
+        if (pos === undefined || els[v][pos].t !== g[0].t) return null;
+        g.push(els[v][pos]);
+      }
+    }
+    groups.forEach((g, base) => g.forEach((c, v) => { c._ord = v ? els[v].indexOf(c) : base; }));
+    return groups;
   };
 
   // ::before/::after of the same element across viewports; where it's missing it was display:none.
@@ -624,7 +810,7 @@
     for (const diff of hoverDiffsFor(nodes[0], ctx).concat(ownStateDiffs(nodes[0], ctx))) {
       for (const p of COLOR_PROPS.concat(['fill', 'stroke', 'outline-color'])) if (p in diff[1]) theme.addColor(diff[1][p]);
     }
-    for (const g of aligned(nodes)[0]) collect(g, theme, ctx);
+    for (const run of childRuns(nodes)) for (const g of run.groups) collect(g, theme, ctx);
   };
 
   // [[hoveredIndex, {prop: value}], ...] for the element n, from the widest capture's hover pass
@@ -708,7 +894,7 @@
 
   // 'md:absolute' + 'before:' -> 'md:before:absolute' (breakpoint first, then the state/pseudo variant)
   const withVariant = (c, variant, bps) => {
-    const bp = [...bps].reverse().find((b) => c.startsWith(b));
+    const bp = ['', ...bps].reverse().find((b) => c.startsWith(b)); // ('' too: a copy for md: and up has no base)
     return bp + variant + c.slice(bp.length);
   };
 
@@ -756,6 +942,10 @@
       maps.forEach(([simple], i) => {
         simple['min-height'] = nodes[i].sh ? [cls('min-h', space(`${nodes[i].sh}px`)), false] : ['min-h-0', true];
       });
+    }
+    if (nodes.some((n) => n._ord !== undefined)) {
+      // its place in a carousel the script reordered (see reordered): the markup has the first width's order
+      maps.forEach(([simple], i) => { simple.order = [`order-${nodes[i]._ord}`, i === 0]; });
     }
     const out = mergeMaps(maps, bps);
     for (const [which, variant] of [['pb', 'before:'], ['pa', 'after:']]) {
@@ -840,6 +1030,11 @@
       if (classes) svg = svg.replace('<svg', `<svg class="${classes}"`);
       return { tag: 'svg', raw: svg, hint };
     }
+    if (base.t === 'video') {
+      // the captured frame as the poster (the widest capture's)
+      const snap = nodes.map((n) => n.snap).filter(Boolean).pop();
+      if (snap) base.a = base.a.filter(([k]) => k !== 'poster').concat([['poster', snap]]);
+    }
     if (base.t === 'canvas') {
       // a picture of the drawing stands in for the script that drew it; where it differs between widths,
       // each breakpoint gets its own through <picture>
@@ -857,8 +1052,12 @@
         return { tag: 'picture', cls: 'contents', attrs: {}, kids: sources.concat(img), pretty: true, hint };
       }
     }
-    const [groups, k2] = aligned(nodes);
-    let kids = groups.map((g) => render(g, nodes.slice(0, k2), viewports, theme, bps, ctx));
+    const runs = childRuns(nodes);
+    let kids = runs.flatMap(({ from, to, groups: gs }) => gs.map((g) => {
+      const kid = render(g, nodes.slice(from, to + 1), viewports.slice(from), theme, bps.slice(from), ctx);
+      return runs.length > 1 ? onlyAt(kid, from, to, nodes.length, g[0].s && g[0].s.display, bps) : kid;
+    }));
+    const groups = runs.flatMap((r) => r.groups);
     const disp = base.s.display;
     const pretty = disp.includes('flex') || disp.includes('grid') || groups.every((g) =>
       ('text' in g[0] ? g[0].text.trim() === '' : BLOCKY.includes(g[0].s.display)));
@@ -1200,7 +1399,7 @@
     for (const c of captures) {
       const visit = (n) => {
         if (!n || 'text' in n) return;
-        if (n.t === 'canvas' && !n.snap && c.canvas && c.canvas[n.i]) n.snap = c.canvas[n.i];
+        if (['canvas', 'video'].includes(n.t) && !n.snap && c.canvas && c.canvas[n.i]) n.snap = c.canvas[n.i];
         (n.c || []).forEach(visit);
       };
       visit(c.root);
