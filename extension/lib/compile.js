@@ -723,6 +723,10 @@
   const breakpoints = (viewports) => [''].concat(['md:', 'lg:', 'xl:', '2xl:'].slice(0, viewports.length - 1));
 
   const nodeProps = (nodes) => {
+    // an image showing other files at other widths (a lazy loader's placeholder at some) can't size itself
+    // from the one file the clone keeps: sized everywhere
+    const src = (n) => ((n.a || []).find(([k]) => k === 'src') || [])[1];
+    if (['img', 'video'].includes(nodes[0].t) && new Set(nodes.map(src)).size > 1) for (const n of nodes) n.fw = n.fh = false;
     const props = new Set(nodes.flatMap((n) => n.k));
     props.delete('width');
     props.delete('height');

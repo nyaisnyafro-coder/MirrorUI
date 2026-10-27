@@ -43,6 +43,12 @@ async def record(name, site):
                 .map((img) => { img.loading = 'eager'; return img.complete ? null
                   : new Promise((r) => { img.onload = img.onerror = r; }); }))])""")
             await page.wait_for_timeout(1500)
+        # requests still in flight are dropped from the archive (drop_unfinished): let late images finish
+        try:
+            await page.wait_for_load_state('networkidle', timeout=20_000)
+        except Exception:
+            pass
+        await page.wait_for_timeout(2000)
         await ctx.close()  # writes the archive
         await browser.close()
     dropped = drop_unfinished(har)

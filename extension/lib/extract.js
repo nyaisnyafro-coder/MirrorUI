@@ -66,7 +66,8 @@
   const TRANSITION = ['transition-property', 'transition-duration', 'transition-timing-function'];
   // (<source> is kept: in <picture> and <video> it decides which file the browser shows at each width)
   const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'LINK', 'META', 'TRACK']);
-  const ATTRS = ['href', 'src', 'srcset', 'sizes', 'media', 'alt', 'title', 'type', 'name', 'placeholder', 'role', 'for', 'target', 'rel',
+  // (width/height attributes are presentational hints that size images and tables)
+  const ATTRS = ['href', 'src', 'srcset', 'sizes', 'media', 'width', 'height', 'alt', 'title', 'type', 'name', 'placeholder', 'role', 'for', 'target', 'rel',
     'datetime', 'colspan', 'rowspan', 'poster', 'autoplay', 'muted', 'loop', 'playsinline', 'controls',
     'required', 'disabled', 'rows', 'cols', 'method', 'value'];
   const HOVER_TAGS = new Set(['a', 'button', 'label', 'summary', 'select', 'input', 'textarea']);
@@ -392,6 +393,11 @@
         if (REPLACED.has(tag)) {
           // (positioned between insets an image keeps its own aspect ratio rather than stretching: always sized)
           n.fw = n.fh = !['absolute', 'fixed'].includes(s.position) && sameWith(el, { width: 'auto', height: 'auto' }, before);
+          // shown at another size than its file or its width/height attributes say: CSS sizes it (a lazy loader
+          // swapping the file later can fool the test above)
+          const off = (shown, natural) => natural > 0 && Math.abs(shown - natural) > 0.5;
+          if (off(r.width, el.naturalWidth) || off(r.width, parseFloat(el.getAttribute('width')))
+              || off(r.height, el.naturalHeight) || off(r.height, parseFloat(el.getAttribute('height')))) n.fw = n.fh = false;
         } else {
           // A flex or grid item stretched across the line sizes itself from its siblings: three cards each
           // 80px tall look free one at a time, since the other two still hold the line at 80px. On the cross
