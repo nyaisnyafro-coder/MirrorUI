@@ -28,12 +28,13 @@
     const p = px(v);
     if (p === null) return null;
     const neg = p < 0, a = Math.abs(p);
-    if (a < 0.25) return '0';
+    // a scale step only when it is the value: rounding to the nearest step shifted things by fractions of a pixel
+    if (a < 0.05) return '0';
     let s;
-    if (Math.abs(a - 1) < 0.25) s = 'px';
+    if (Math.abs(a - 1) < 0.05) s = 'px';
     else {
       const q = pyRound(a / 2) * 2; // spacing scale moves in 0.5 steps = 2px
-      s = q && Math.abs(q - a) <= 0.5 ? num(q / 4) : `[${num(a)}px]`;
+      s = q && Math.abs(q - a) <= 0.05 ? num(q / 4) : `[${num(a)}px]`;
     }
     return (neg ? '-' : '') + s;
   };
@@ -156,6 +157,7 @@
   // h-screen / min-h-screen, or, for previews, the captured viewport height in px: a preview iframe is sized
   // to its content, so 100vh there is the content's height, which then grows with it, round and round.
   let screenAsPx = false;
+  let traceWidth = 0;
   const screenClass = (prefix, vh) => (screenAsPx ? `${prefix}-[${num(vh)}px]` : `${prefix}-screen`);
 
   const sizeClass = (prefix, value, parentSize, vh, allowScreen) => {
@@ -163,9 +165,9 @@
     if (p === null) return ['auto', 'none'].includes(value) ? `${prefix}-${value}` : `${prefix}-[${arb(value)}]`;
     if (parentSize && parentSize > 0) {
       const ratio = p / parentSize;
-      // a fraction only when it lands within half a pixel: a 176px sidebar in 295px is not 3/5 (177px)
-      if (Math.abs(p - parentSize) <= 0.5) return `${prefix}-full`;
-      for (const [a, b] of FRACTIONS) if (Math.abs(p - (parentSize * a) / b) <= 0.5) return `${prefix}-${a}/${b}`;
+      // a fraction only when it lands on the value (to 0.1px): a 176px sidebar in 295px is not 3/5 (177px)
+      if (Math.abs(p - parentSize) <= 0.1) return `${prefix}-full`;
+      for (const [a, b] of FRACTIONS) if (Math.abs(p - (parentSize * a) / b) <= 0.1) return `${prefix}-${a}/${b}`;
       // nearly the full width minus a gutter, e.g. width: calc(100% - 40px): keeps it fluid between breakpoints
       const gap = parentSize - p;
       if (prefix === 'w' && gap >= 4 && gap <= 64 && ratio > 0.75) return `w-[calc(100%_-_${num(gap)}px)]`;
@@ -200,10 +202,10 @@
   // A translation by half or all of the element's own size is the centring idiom (-translate-x-1/2); other
   // translations map to the spacing scale.
   const translateAxis = (t, size, name) => {
-    if (Math.abs(t) < 0.25) return null;
+    if (Math.abs(t) < 0.05) return null;
     for (const [k, f] of [['1/2', 0.5], ['full', 1]]) {
-      if (near(t, -size * f, 0.75)) return `-${name}-${k}`;
-      if (near(t, size * f, 0.75)) return `${name}-${k}`;
+      if (near(t, -size * f, 0.1)) return `-${name}-${k}`;
+      if (near(t, size * f, 0.1)) return `${name}-${k}`;
     }
     return cls(name, space(`${t}px`));
   };
@@ -415,6 +417,9 @@
     };
     sideGroup('m', (v) => space(v) || '0', Object.fromEntries(TRBL.map(([k, v]) => [k, `margin-${v}`])));
     for (const k of n.ma || '') if (sides.m) sides.m[k] = ['auto', false]; // proven margin:auto
+    if (sides.m && parent && parent.cw !== undefined && n.w < parent.cw - 0.5) {
+      for (const k of ['l', 'r']) if (sides.m[k][0] === '0') sides.m[k] = ['0!', sides.m[k][1]];
+    }
     if (sides.m && !n.ma) {
       const ml = px(s['margin-left']), mr = px(s['margin-right']);
       const constrained = !n.fw || s['max-width'] !== 'none';
@@ -431,7 +436,7 @@
     const bw = (v, style) => {
       const p = px(v);
       if (!p || style === 'none') return '0';
-      if (near(p, 1, 0.25)) return '';
+      if (near(p, 1, 0.05)) return '';
       return ['2', '4', '8'].includes(num(p)) ? num(p) : `[${num(p)}px]`;
     };
     const borderNames = Object.fromEntries(TRBL.map(([k, v]) => [k, `border-${v}-width`]));
@@ -461,7 +466,7 @@
     if (has('font-family')) put('font-family', theme.font(s['font-family']));
     const fs = px(s['font-size']);
     if (has('font-size')) {
-      const hit = FONT_SIZES.find(([k]) => near(fs, k, 0.25));
+      const hit = FONT_SIZES.find(([k]) => near(fs, k, 0.01));
       put('font-size', hit ? `text-${hit[1]}` : `text-[${num(fs)}px]`);
     }
     if (has('font-weight')) put('font-weight', `font-${WEIGHTS[s['font-weight']] || `[${s['font-weight']}]`}`);
@@ -624,6 +629,7 @@
   // More properties: [prop, (value, styles, node) -> Tailwind class, null for [prop:value], false for nothing]
   const EXTRA = [
     ['grid-template-rows', (v) => (v === 'none' ? 'grid-rows-none' : `grid-rows-[${arb(v)}]`)],
+    ['grid-template-areas'],
     ['grid-auto-flow', (v) => ({ row: 'grid-flow-row', column: 'grid-flow-col', dense: 'grid-flow-dense',
       'row dense': 'grid-flow-row-dense', 'column dense': 'grid-flow-col-dense' }[v])],
     ['grid-auto-rows', (v) => (v === 'auto' ? 'auto-rows-auto' : `auto-rows-[${arb(v)}]`)],
@@ -665,6 +671,12 @@
     ['-webkit-text-stroke-color', (v, s) => (parseFloat(s['-webkit-text-stroke-width']) ? null : false)],
     ['perspective', (v) => (v === 'none' ? 'perspective-none' : null)],
     ['backface-visibility', (v) => `backface-${v}`],
+    ['transform-style', (v) => (v === 'preserve-3d' ? 'transform-3d' : v === 'flat' ? 'transform-flat' : null)],
+    // computed in px like transform-origin: only with a perspective, and off centre
+    ['perspective-origin', (v, s, n) => {
+      const [x, y] = v.split(' ').map(px);
+      return s.perspective === 'none' || (near(x, n.w / 2, 0.5) && near(y, n.h / 2, 0.5)) ? false : `perspective-origin-[${arb(v)}]`;
+    }],
   ];
 
   const collectColors = (n, props, theme) => {
@@ -848,7 +860,10 @@
     if (group === 'm') {
       // an auto margin that resolved to 0 at another viewport is still auto there
       for (const [k, sq] of Object.entries(merged)) {
-        if (sq.some(([v]) => v === 'auto')) merged[k] = sq.map(([v, d]) => (['auto', '0'].includes(v) ? ['auto', false] : [v, d]));
+        // ('0!': a zero margin on a box narrower than its parent, where auto would move it; see mapNode)
+        merged[k] = sq.some(([v]) => v === 'auto')
+          ? sq.map(([v, d]) => (['auto', '0'].includes(v) ? ['auto', false] : v === '0!' ? ['0', false] : [v, d]))
+          : sq.map(([v, d]) => (v === '0!' ? ['0', d] : [v, d]));
       }
     }
     const vals = (k) => JSON.stringify(merged[k].map(([v]) => v));
@@ -1059,10 +1074,18 @@
     }));
     const groups = runs.flatMap((r) => r.groups);
     const disp = base.s.display;
-    const pretty = disp.includes('flex') || disp.includes('grid') || groups.every((g) =>
+    // (inside white-space: pre every space and line break is content: never re-indented)
+    const pre = /^pre|break-spaces/.test(base.s['white-space'] || '');
+    const pretty = !pre && (disp.includes('flex') || disp.includes('grid')) || !pre && groups.every((g) =>
       ('text' in g[0] ? g[0].text.trim() === '' : BLOCKY.includes(g[0].s.display)));
     if (pretty) kids = kids.filter((kid) => !('text' in kid) || kid.text.trim());
-    return { tag, cls: classes, attrs: Object.fromEntries(base.a), kids, pretty, hint };
+    const attrs = Object.fromEntries(base.a);
+    // debugging (options.trace = a capture's viewport width): which captured element each one comes from
+    if (traceWidth) {
+      const v = viewports.findIndex((vp) => vp.vw === traceWidth);
+      if (v >= 0 && nodes[v]) attrs['data-mui-i'] = String(nodes[v].i);
+    }
+    return { tag, cls: classes, attrs, kids, pretty, hint };
   };
 
   const toHtml = (v, indent = 0) => {
@@ -1386,6 +1409,7 @@
   // preview: for showing in an iframe that is sized to its content (see screenClass)
   const build = (captures, options = {}) => {
     screenAsPx = !!options.preview;
+    traceWidth = options.trace || 0;
     captures = [...captures].sort((a, b) => a.vw - b.vw);
     const viewports = captures.map((c) => ({ vw: c.vw, vh: c.vh, vcw: c.vcw, vch: c.vch }));
     const bps = breakpoints(viewports);

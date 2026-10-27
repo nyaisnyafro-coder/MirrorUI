@@ -38,6 +38,10 @@ async def record(name, site):
             except Exception:
                 pass
             await scroll_through(page)
+            # every image at this width, lazy ones too: captures load them all (settleImages in extract.js)
+            await page.evaluate("""() => Promise.race([new Promise((r) => setTimeout(r, 15000)), Promise.all([...document.images]
+                .map((img) => { img.loading = 'eager'; return img.complete ? null
+                  : new Promise((r) => { img.onload = img.onerror = r; }); }))])""")
             await page.wait_for_timeout(1500)
         await ctx.close()  # writes the archive
         await browser.close()

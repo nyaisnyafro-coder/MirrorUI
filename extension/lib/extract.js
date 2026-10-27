@@ -42,14 +42,15 @@
     'background-clip', '-webkit-text-fill-color', 'background-origin', 'background-attachment', 'mix-blend-mode', 'filter', 'backdrop-filter',
     'outline-style', 'outline-width', 'outline-color', 'outline-offset',
     // the rest map to Tailwind where it has a class, else to [prop:value] (see EXTRA in compile.js)
-    'grid-template-rows', 'grid-row-start', 'grid-row-end', 'grid-auto-flow', 'grid-auto-rows', 'grid-auto-columns',
+    'grid-template-rows', 'grid-template-areas', 'grid-row-start', 'grid-row-end', 'grid-auto-flow', 'grid-auto-rows', 'grid-auto-columns',
     'align-content', 'justify-self', 'vertical-align', 'object-position', 'isolation', 'transform-origin',
     'text-wrap-style', 'text-shadow', 'text-indent', 'word-spacing', 'word-break', 'overflow-wrap', 'hyphens',
     'font-feature-settings', 'font-variation-settings', 'font-variant-numeric', 'font-stretch',
     'clip-path', 'mask-image', 'mask-size', 'mask-position', 'mask-repeat', 'mask-composite', 'mask-mode', 'mask-origin',
     'mask-clip', 'stroke-width',
     'list-style-position', 'border-collapse', 'border-spacing', 'table-layout', 'column-count', 'writing-mode',
-    '-webkit-text-stroke-width', '-webkit-text-stroke-color', 'perspective', 'backface-visibility',
+    '-webkit-text-stroke-width', '-webkit-text-stroke-color', 'perspective', 'perspective-origin', 'transform-style',
+    'backface-visibility',
   ];
   const INHERITED = new Set([
     'color', 'font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing',
@@ -82,8 +83,9 @@
     button,input,select,optgroup,textarea{font:inherit;letter-spacing:inherit;color:inherit;border-radius:0;background-color:transparent;opacity:1}
     textarea{resize:vertical}
     table{text-indent:0;border-color:inherit;border-collapse:collapse}`;
+  // (content-visibility: auto sections off screen aren't painted, so a full-page screenshot showed them empty)
   const FREEZE_CSS = `*,*::before,*::after{animation:none!important;transition:none!important;
-    scroll-behavior:auto!important;caret-color:transparent!important}`;
+    scroll-behavior:auto!important;caret-color:transparent!important;content-visibility:visible!important}`;
 
   // elements and their base styles from the last extract(), for hoverDiff()
   let state = { els: [], base: [] };
@@ -105,11 +107,15 @@
   // a test's paused page clock would stop them; the runner bounds the wait).
   const settleImages = () => {
     const imgs = [...document.images];
-    for (const img of imgs) if (img.loading === 'lazy') img.loading = 'eager';
+    for (const img of imgs) {
+      if (img.loading === 'lazy') img.loading = 'eager';
+      // decoding="async" images off screen may still be undecoded, and blank, when a full-page screenshot paints
+      if (img.decoding === 'async') img.decoding = 'sync';
+    }
     return Promise.all(imgs.map((img) => (img.complete ? null : new Promise((done) => {
       img.addEventListener('load', done, { once: true });
       img.addEventListener('error', done, { once: true });
-    })))).then(() => imgs.length);
+    })))).then(() => Promise.all(imgs.map((img) => img.decode().catch(() => {})))).then(() => imgs.length);
   };
 
   const freeze = () => {
@@ -309,7 +315,8 @@
     };
 
     // parentDisplay is the display of the nearest ancestor that generates a box (skips display:contents)
-    const walk = (el, parentStyles, parentDisplay) => {
+    // inTransform: inside a scaled or rotated ancestor, where bounding rects aren't layout sizes
+    const walk = (el, parentStyles, parentDisplay, inTransform = false) => {
       const i = index++;
       const tag = el.tagName.toLowerCase();
       const cs = getComputedStyle(el);
@@ -331,10 +338,11 @@
       }
       const r = el.getBoundingClientRect();
       // a rotated or scaled box's bounding rect isn't its size; its layout box is
-      const own = ['transform', 'scale', 'rotate'].some((p) => s[p] && s[p] !== 'none') && el.offsetWidth !== undefined;
+      const shaped = shapes(s);
+      const size = (inTransform && computedSize(s)) || (shaped ? untransformed(el) : r);
       const n = {
         t: tag, i, a: attrsOf(el), s, k,
-        w: own ? el.offsetWidth : r.width, h: own ? el.offsetHeight : r.height,
+        w: size.width, h: size.height, y: r.y + scrollY,
         cw: el.clientWidth - parseFloat(s['padding-left']) - parseFloat(s['padding-right']),
         ch: el.clientHeight - parseFloat(s['padding-top']) - parseFloat(s['padding-bottom']),
         fw: true, fh: true, c: [], pd: parentDisplay,
@@ -359,6 +367,8 @@
           n.fh = sameWith(el, 'height', before, 'auto', grid || !column ? sibs : []);
           // width and height can vouch for each other too (a square icon box: either one gives back the other)
           if (n.fw && n.fh && !sameWith(el, { width: 'auto', height: 'auto' }, before)) n.fw = n.fh = false;
+          // form controls size themselves from options and the browser's control styles: keep their size
+          if (['select', 'input', 'textarea'].includes(tag)) n.fw = n.fh = false;
           // the parent is as wide as this child makes it (shrink-wrapped): then the width can't be a percentage
           // of the parent, w-full there would be circular
           if (!n.fw && el.parentElement) {
@@ -375,7 +385,9 @@
         // Only axes where auto margins are actually written: left/right in block flow (mx-auto), the main axis
         // in flex. On a flex cross axis an auto margin and an equal fixed one in every item are indistinguishable.
         const pdir = parentStyles ? parentStyles['flex-direction'] : 'row';
-        const axes = !/flex/.test(parentDisplay) ? 'lr' : pdir.startsWith('column') ? 'tb' : 'lr';
+        // (an absolutely positioned box between two insets centres with auto margins on either axis)
+        const axes = ['absolute', 'fixed'].includes(s.position) ? 'tblr'
+          : !/flex/.test(parentDisplay) ? 'lr' : pdir.startsWith('column') ? 'tb' : 'lr';
         n.ma = Object.entries(SIDES)
           .filter(([key, p]) => (/grid/.test(parentDisplay) || axes.includes(key))
             && parseFloat(s[p]) > 0.5 && sameWith(el, p, before)
@@ -443,7 +455,7 @@
         } else if (child.nodeType === Node.ELEMENT_NODE && !SKIP.has(child.tagName)
                    // detached by the page's own scripts meanwhile: no styles to read
                    && getComputedStyle(child).display) {
-          n.c.push(walk(child, s, childDisplay));
+          n.c.push(walk(child, s, childDisplay, inTransform || shaped));
         }
       }
       return n;
@@ -478,6 +490,31 @@
     } finally {
       frame.remove();
     }
+  };
+
+  // Rotated, scaled or skewed (a transform that is only a translation leaves sizes alone).
+  const shapes = (s) => ['rotate', 'scale'].some((p) => s[p] && s[p] !== 'none')
+    || (s.transform && s.transform !== 'none' && !/^matrix\(1, 0, 0, 1,/.test(s.transform));
+
+  // The layout size from computed styles (border box), when they have one in px.
+  const computedSize = (s) => {
+    if (!/px$/.test(s.width) || !/px$/.test(s.height)) return null;
+    const w = parseFloat(s.width), h = parseFloat(s.height);
+    if (s['box-sizing'] === 'border-box') return { width: w, height: h };
+    const sum = (...ps) => ps.reduce((t, p) => t + (parseFloat(s[p]) || 0), 0);
+    return { width: w + sum('padding-left', 'padding-right', 'border-left-width', 'border-right-width'),
+      height: h + sum('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width') };
+  };
+
+  // The box of a rotated or scaled element as laid out, before its transform (the bounding rect is the
+  // transformed outline).
+  const untransformed = (el) => {
+    const props = ['transform', 'rotate', 'scale', 'translate'];
+    const saved = props.map((p) => [p, el.style.getPropertyValue(p), el.style.getPropertyPriority(p)]);
+    for (const p of props) el.style.setProperty(p, 'none', 'important');
+    const r = el.getBoundingClientRect();
+    for (const [p, v, pri] of saved) if (v) el.style.setProperty(p, v, pri); else el.style.removeProperty(p);
+    return r;
   };
 
   // A canvas's drawing as a data: URL, or null where it reads back blank: WebGL without preserveDrawingBuffer
