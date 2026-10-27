@@ -21,7 +21,8 @@
 //   pb/pa - ::before / ::after, as pseudo nodes with their own s/k
 (() => {
   const PROPS = [
-    'display', 'position', 'top', 'right', 'bottom', 'left', 'z-index',
+    'display', 'position', 'top', 'right', 'bottom', 'left', 'z-index', 'float', 'clear',
+    'counter-reset', 'counter-increment', 'counter-set',
     'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'align-self',
     'flex-grow', 'flex-shrink', 'flex-basis', 'order',
     'row-gap', 'column-gap', 'grid-template-columns', 'grid-column-start', 'grid-column-end',
@@ -141,12 +142,25 @@
   // (no computed style: detached by the page's own scripts, or not rendered at all)
   const walked = (el) => !SKIP.has(el.tagName) && !!getComputedStyle(el).display;
 
+  // The nodes an element renders: its open shadow root's content when it has one (web components such as a
+  // <rolling-number>), with <slot>s replaced by what's assigned to them.
+  const kids = (el) => {
+    const out = [];
+    for (const c of (el.shadowRoot || el).childNodes) {
+      if (c.nodeType === Node.ELEMENT_NODE && c.tagName === 'SLOT') {
+        const assigned = c.assignedNodes({ flatten: true });
+        out.push(...(assigned.length ? assigned : c.childNodes));
+      } else out.push(c);
+    }
+    return out;
+  };
+
   const elementsInOrder = (root) => {
     const out = [];
     const visit = (el) => {
       out.push(el);
       if (el.tagName.toLowerCase() === 'svg') return;
-      for (const c of el.children) if (walked(c)) visit(c);
+      for (const c of kids(el)) if (c.nodeType === Node.ELEMENT_NODE && walked(c)) visit(c);
     };
     visit(root);
     return out;
@@ -325,12 +339,13 @@
       const s = snapshot(cs);
       const base = baseline('span');
       const k = PROPS.filter((p) => s[p] !== (INHERITED.has(p) ? hostStyles[p] : base[p]));
-      // Pseudo boxes can't be probed with inline styles; text content sizes itself, empty boxes are drawn shapes.
-      const sized = content === '""' || content.startsWith('url(');
+      // Pseudo boxes can't be probed with inline styles. Inline ones size themselves; any other box keeps its
+      // measured size: empty boxes are drawn shapes, and a counter or icon often sits in a fixed-width column.
+      const free = s.display === 'inline';
       return {
         t: which, s, k, content, pd: hostDisplay,
         w: parseFloat(s.width) || 0, h: parseFloat(s.height) || 0,
-        fw: !sized || s.display === 'inline', fh: !sized || s.display === 'inline',
+        fw: free || !/px$/.test(s.width), fh: free || !/px$/.test(s.height),
       };
     };
 
@@ -411,8 +426,10 @@
         const axes = ['absolute', 'fixed'].includes(s.position) ? 'tblr'
           : !/flex/.test(parentDisplay) ? 'lr' : pdir.startsWith('column') ? 'tb' : 'lr';
         n.ma = Object.entries(SIDES)
+          // (Chrome sometimes reports an auto margin as 0px though it centres the box: for boxes with a set
+          // width those are tested too, setting 0px for real moves them)
           .filter(([key, p]) => (/grid/.test(parentDisplay) || axes.includes(key))
-            && parseFloat(s[p]) > 0.5 && sameWith(el, p, before)
+            && (parseFloat(s[p]) > 0.5 || (!n.fw || s['max-width'] !== 'none')) && sameWith(el, p, before)
             && !sameWith(el, p, before, '0px')
             && !sameWith(el, p, before, `${parseFloat(s[p]) + 16}px`))
           .map(([key]) => key).join('');
@@ -473,7 +490,7 @@
       if (pa) n.pa = pa;
       const childDisplay = s.display === 'contents' ? parentDisplay : s.display;
       const pre = s['white-space'].startsWith('pre') || s['white-space'] === 'break-spaces';
-      for (const child of el.childNodes) {
+      for (const child of kids(el)) {
         if (child.nodeType === Node.TEXT_NODE) {
           const text = pre ? child.textContent : child.textContent.replace(/\s+/g, ' ');
           if (text.trim()) n.c.push({ text });

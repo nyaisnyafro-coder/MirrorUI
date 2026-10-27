@@ -151,10 +151,13 @@
   // Output runs under border-box; grow content-box lengths by padding + border.
   const borderBox = (s, value, axis) => {
     const p = px(value);
-    if (p === null || s['box-sizing'] !== 'content-box') return value;
+    if (s['box-sizing'] !== 'content-box' || ['none', 'auto'].includes(value)) return value;
     const sides = axis === 'x' ? ['left', 'right'] : ['top', 'bottom'];
-    const extra = sides.reduce((t, d) => t + px(s[`padding-${d}`]) + px(s[`border-${d}-width`]), 0);
-    return `${p + extra}px`;
+    const extra = sides.reduce((t, d) => t + (px(s[`padding-${d}`]) || 0) + (px(s[`border-${d}-width`]) || 0), 0);
+    if (p !== null) return `${p + extra}px`;
+    // a percentage or calc() limit: the same plus the padding and border, in calc()
+    if (!extra || !/%|calc\(|v[wh]|em/.test(value)) return value;
+    return `calc(${value.replace(/^calc\((.*)\)$/, '$1')} + ${num(extra)}px)`;
   };
 
   // h-screen / min-h-screen, or, for previews, the captured viewport height in px: a preview iframe is sized
@@ -431,7 +434,9 @@
       // with zero margins only when it fills its parent: anything narrower would move to the centre
       const fills = parent && parent.cw !== undefined && near(n.w, parent.cw, 0.5);
       if (ml !== null && near(ml, mr) && (ml > 0.5 || (s['max-width'] !== 'none' && fills)) && constrained
-          && s.display === 'block' && ['block', 'flow-root', 'list-item'].includes(pdisp)) {
+          && s.display === 'block' && ['block', 'flow-root', 'list-item'].includes(pdisp)
+          && (!s.float || s.float === 'none') // (a float's auto margins are 0)
+          && !n.pf) { // (nor in a parent as wide as its content: auto margins add nothing to that width)
         sides.m.l = ['auto', false];
         sides.m.r = ['auto', false];
       }
@@ -551,7 +556,9 @@
     if (has('background-color')) put('background-color', theme.color('bg', s['background-color']));
     if (has('background-image')) {
       const v = s['background-image'];
-      put('background-image', v === 'none' ? 'bg-none' : `bg-[${arb(v)}]`);
+      // several layers (one may be none) aren't recognised as an image by bg-[…]: the property says it
+      const multi = v.split(/,(?![^(]*\))/).length > 1;
+      put('background-image', v === 'none' ? 'bg-none' : multi ? `[background-image:${arb(v)}]` : `bg-[${arb(v)}]`);
     }
     if (has('background-size')) {
       const v = s['background-size'];
@@ -636,6 +643,11 @@
 
   // More properties: [prop, (value, styles, node) -> Tailwind class, null for [prop:value], false for nothing]
   const EXTRA = [
+    ['counter-reset'], ['counter-increment'], ['counter-set'],
+    ['float', (v) => ({ left: 'float-left', right: 'float-right', none: 'float-none', 'inline-start': 'float-start',
+      'inline-end': 'float-end' }[v])],
+    ['clear', (v) => ({ left: 'clear-left', right: 'clear-right', both: 'clear-both', none: 'clear-none',
+      'inline-start': 'clear-start', 'inline-end': 'clear-end' }[v])],
     ['grid-template-rows', (v) => (v === 'none' ? 'grid-rows-none' : `grid-rows-[${arb(v)}]`)],
     ['grid-template-areas'],
     ['grid-auto-flow', (v) => ({ row: 'grid-flow-row', column: 'grid-flow-col', dense: 'grid-flow-dense',
@@ -716,6 +728,11 @@
     props.delete('height');
     if (!nodes.every((n) => n.fw)) props.add('width');
     if (!nodes.every((n) => n.fh)) props.add('height');
+    // proven auto margins, also where the margin reads as the default 0px
+    const SIDE = { t: 'margin-top', r: 'margin-right', b: 'margin-bottom', l: 'margin-left' };
+    for (const n of nodes) for (const k of n.ma || '') props.add(SIDE[k]);
+    // a line height pinned with a font size at one width must be restated (or reset) at the others
+    if (props.has('font-size')) props.add('line-height');
     return props;
   };
 
@@ -1004,9 +1021,12 @@
   // [{family, css, urls}]
   const fontFaces = (captures, families = null) => {
     const used = new Set(families || []);
+    const family = (st) => st['font-family'].split(',')[0].trim().replace(/^["']+|["']+$/g, '').toLowerCase();
     const visit = (n) => {
       if (!n || 'text' in n) return;
-      used.add(n.s['font-family'].split(',')[0].trim().replace(/^["']+|["']+$/g, '').toLowerCase());
+      used.add(family(n.s));
+      // icon fonts are often used by ::before/::after only
+      for (const p of [n.pb, n.pa]) if (p) used.add(family(p.s));
       (n.c || []).forEach(visit);
     };
     if (!families) captures.forEach((c) => visit(c.root));
