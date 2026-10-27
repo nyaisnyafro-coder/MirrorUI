@@ -12,16 +12,19 @@
     return m ? parseFloat(m[1]) : null;
   };
 
+  // Up to 6 decimals: Chrome lays out in 1/64 px and truncates, so 173.8125 written as 173.812 lands on
+  // 173.797, and such errors add up down a page until text snaps to the next pixel row.
+  // Computed styles round to 4 decimals (29.3281px for the 29.328125 laid out): back onto the 1/64 grid.
   const num = (x) => {
-    const k = x * 1000;
-    let s = Math.abs(k % 1) === 0.5 ? (pyRound(k) / 1000).toFixed(3) : x.toFixed(3);
+    if (Math.abs(x * 64 - Math.round(x * 64)) < 0.02) x = Math.round(x * 64) / 64;
+    let s = (Math.round(x * 1e6) / 1e6).toFixed(6);
     s = s.replace(/0+$/, '').replace(/\.$/, '');
     return s === '-0' || s === '' ? '0' : s;
   };
 
   // Arbitrary-value body: Tailwind reads underscores as spaces, so real ones (file names in url()) are escaped
   // first; double quotes become single ones, since the class sits inside class="…".
-  const arb = (v) => v.trim().replace(/"/g, "'").replace(/_/g, '\\_').replace(/,\s+/g, ',').replace(/ /g, '_');
+  const arb = (v) => v.trim().replace(/(\d+\.\d+)px/g, (m, d) => `${num(+d)}px`).replace(/"/g, "'").replace(/_/g, '\\_').replace(/,\s+/g, ',').replace(/ /g, '_');
 
   // px -> spacing-scale suffix ('4', '2.5', 'px', '[13px]', '-4'). null if not a px length.
   const space = (v) => {
@@ -357,8 +360,10 @@
       out.gap = [rg === cg ? `gap-${rg}` : `gap-x-${cg} gap-y-${rg}`, !keep.has('row-gap') && !keep.has('column-gap')];
     }
     if (has('grid-template-columns')) {
-      const v = s['grid-template-columns'];
-      const tracks = v !== 'none' ? words(v) : [];
+      // only the explicit columns (see explicitColumns in extract.js)
+      const all = s['grid-template-columns'] !== 'none' ? words(s['grid-template-columns']) : [];
+      const tracks = n.gx ? all.slice(0, n.gx) : all;
+      const v = tracks.join(' ');
       const sizes = tracks.map(px);
       let c;
       const equal = sizes.every((x) => x !== null) && Math.max(...sizes) - Math.min(...sizes) < 1;
@@ -481,12 +486,12 @@
         // Line heights add up line after line, so no half-pixel rounding here: a named ratio or an exact
         // scale step, else the ratio itself when it's a clean number (1.35), else the exact px.
         const ratio = fs ? lh / fs : 0;
-        const hit = LEADING.find(([k]) => Math.abs(lh - fs * k) < 0.05);
+        const hit = LEADING.find(([k]) => Math.abs(lh - fs * k) < 0.005);
         const step = Math.round(lh / 4 * 4) / 4; // spacing scale in quarter steps
         const clean = Math.round(ratio * 1000) / 1000;
         if (hit) c = `leading-${hit[1]}`;
-        else if (Math.abs(lh - step * 4) < 0.05 && lh >= 1) c = `leading-${num(step)}`;
-        else if (fs && Math.abs(lh - fs * clean) < 0.01) c = `leading-[${num(clean)}]`;
+        else if (Math.abs(lh - step * 4) < 0.005 && lh >= 1) c = `leading-${num(step)}`;
+        else if (fs && Math.abs(lh - fs * clean) < 0.002) c = `leading-[${num(clean)}]`;
         else c = `leading-[${num(lh)}px]`;
       }
       out['line-height'] = [c, !keep.has('line-height') && !pinLeading];

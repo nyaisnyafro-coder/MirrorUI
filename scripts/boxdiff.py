@@ -49,7 +49,7 @@ async def main(args):
     viewports = sorted({375, 768, 1280, width})
     OUT.mkdir(parents=True, exist_ok=True)
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch()
+        browser = await pw.chromium.launch(args=['--disable-lcd-text'])  # as the tests do
         captures = await capture(browser, url, selector, viewports, OUT, use_cache=False, replay=replay)
         # the page's fonts embedded, as the site tests do
         files = await download_fonts(browser, await font_urls(browser, captures), url, replay) if replay else {}
@@ -80,7 +80,8 @@ async def main(args):
             bad.append((i, n, want, got, cls))
     print(f'{len(bad)} of {len(boxes)} boxes differ at {width}px')
     for i, n, want, got, cls in bad[:int(args[-1]) if args[-1].isdigit() and len(args) > 2 + (replay is None) else 25]:
-        fmt = lambda b: '({:.1f}, {:.1f}) {:.1f}×{:.1f}'.format(*b)
+        digits = 3 if TOLERANCE < 0.1 else 1
+        fmt = lambda b: '({:.{d}f}, {:.{d}f}) {:.{d}f}×{:.{d}f}'.format(*b, d=digits)
         print(f"#{i} <{n['t']}{'.' + n['cn'] if n.get('cn') else ''}> original {fmt(want)}  clone {fmt(got)}\n    {cls[:220]}")
 
 

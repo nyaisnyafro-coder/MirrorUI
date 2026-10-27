@@ -63,8 +63,9 @@
   // what hover can change without it being layout noise
   const HOVER_PROPS = PROPS.filter((p) => !['width', 'height', 'top', 'right', 'bottom', 'left'].includes(p));
   const TRANSITION = ['transition-property', 'transition-duration', 'transition-timing-function'];
-  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'LINK', 'META', 'SOURCE', 'TRACK']);
-  const ATTRS = ['href', 'src', 'alt', 'title', 'type', 'name', 'placeholder', 'role', 'for', 'target', 'rel',
+  // (<source> is kept: in <picture> and <video> it decides which file the browser shows at each width)
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'LINK', 'META', 'TRACK']);
+  const ATTRS = ['href', 'src', 'srcset', 'sizes', 'media', 'alt', 'title', 'type', 'name', 'placeholder', 'role', 'for', 'target', 'rel',
     'datetime', 'colspan', 'rowspan', 'poster', 'autoplay', 'muted', 'loop', 'playsinline', 'controls',
     'required', 'disabled', 'rows', 'cols', 'method', 'value'];
   const HOVER_TAGS = new Set(['a', 'button', 'label', 'summary', 'select', 'input', 'textarea']);
@@ -90,6 +91,7 @@
   // elements and their base styles from the last extract(), for hoverDiff()
   let state = { els: [], base: [] };
   const hidden = [];
+  const paused = []; // videos freeze() stopped
 
   // The toolbar's Swap font loads fonts under aliases like "mui font Lora wght 400 700"; name the real family.
   // (Same isolated world as the toolbar, so its alias map is visible here; the CLI has none.)
@@ -124,16 +126,27 @@
     st.id = 'mirrorui-freeze';
     st.textContent = FREEZE_CSS;
     document.documentElement.appendChild(st);
+    // videos too: the frame captured and the frame in the screenshot have to be the same one
+    for (const v of document.querySelectorAll('video')) {
+      if (!v.paused) { v.pause(); paused.push(v); }
+    }
   };
-  const unfreeze = () => document.getElementById('mirrorui-freeze')?.remove();
+  const unfreeze = () => {
+    document.getElementById('mirrorui-freeze')?.remove();
+    for (const v of paused.splice(0)) v.play().catch(() => {});
+  };
 
   // Same order and same skips as walk(), so indexes line up.
+  // The elements a capture contains; walk() and elementsInOrder() must agree, hover diffs go by index.
+  // (no computed style: detached by the page's own scripts, or not rendered at all)
+  const walked = (el) => !SKIP.has(el.tagName) && !!getComputedStyle(el).display;
+
   const elementsInOrder = (root) => {
     const out = [];
     const visit = (el) => {
       out.push(el);
       if (el.tagName.toLowerCase() === 'svg') return;
-      for (const c of el.children) if (!SKIP.has(c.tagName)) visit(c);
+      for (const c of el.children) if (walked(c)) visit(c);
     };
     visit(root);
     return out;
@@ -203,6 +216,13 @@
     if (a.href !== undefined && el.href && !a.href.startsWith('#')) a.href = el.href;
     if (el.currentSrc || (a.src !== undefined && el.src)) a.src = el.currentSrc || el.src;
     if (a.poster) a.poster = new URL(a.poster, location.href).href;
+    // srcset with absolute URLs, so the clone picks the same file as the original at every width
+    if (a.srcset) {
+      a.srcset = a.srcset.split(/,\s+(?=\S)/).map((c) => {
+        const [u, ...d] = c.trim().split(/\s+/);
+        try { return [new URL(u, location.href).href, ...d].join(' '); } catch { return c.trim(); }
+      }).join(', ');
+    }
     return Object.entries(a);
   };
 
@@ -351,10 +371,12 @@
         x: r.x,
       };
       if (parseFloat(transitions[i]['transition-duration']) > 0) n.tr = transitions[i];
-      if (!['inline', 'none', 'contents'].includes(s.display)) {
+      // (inline boxes take no size, except replaced ones: an inline <svg> or <img> is sized like any box)
+      if (!['none', 'contents'].includes(s.display) && (s.display !== 'inline' || (REPLACED.has(tag) && tag !== 'picture'))) {
         const before = boxes(el);
         if (REPLACED.has(tag)) {
-          n.fw = n.fh = sameWith(el, { width: 'auto', height: 'auto' }, before);
+          // (positioned between insets an image keeps its own aspect ratio rather than stretching: always sized)
+          n.fw = n.fh = !['absolute', 'fixed'].includes(s.position) && sameWith(el, { width: 'auto', height: 'auto' }, before);
         } else {
           // A flex or grid item stretched across the line sizes itself from its siblings: three cards each
           // 80px tall look free one at a time, since the other two still hold the line at 80px. On the cross
@@ -411,6 +433,10 @@
           n.ia = ia;
         }
       }
+      if (/grid/.test(s.display)) {
+        const gx = explicitColumns(el, s);
+        if (gx) n.gx = gx;
+      }
       if (tag === 'input' || tag === 'textarea') {
         n.ph = getComputedStyle(el, '::placeholder').getPropertyValue('color');
       }
@@ -435,10 +461,11 @@
         else if (r.width >= 1 && r.height >= 1) { el.setAttribute('data-mui-canvas', i); n.cv = true; }
       }
       if (tag === 'video') {
-        // the frame on screen becomes the poster, so the clone shows it before (and without) playing
-        const frame = videoFrame(el);
-        if (frame) n.snap = frame;
-        else if (r.width >= 1 && r.height >= 1) { el.setAttribute('data-mui-canvas', i); n.cv = true; }
+        // the frame on screen becomes the poster, so the clone shows it before (and without) playing:
+        // photographed as displayed (scaling the full frame into the box again gives slightly other pixels)
+        if (r.width >= 1 && r.height >= 1) { el.setAttribute('data-mui-canvas', i); n.cv = true; }
+        // sized: until the file loads a video takes the poster's proportions, and the photo is whole pixels
+        n.fw = n.fh = false;
       }
       const pb = pseudo(el, '::before', s, s.display);
       const pa = pseudo(el, '::after', s, s.display);
@@ -452,13 +479,27 @@
           if (text.trim()) n.c.push({ text });
           else if (pre && text) n.c.push({ text }); // line breaks between the lines of a code block
           else if (text && n.c.length) n.c.push({ text: ' ' });
-        } else if (child.nodeType === Node.ELEMENT_NODE && !SKIP.has(child.tagName)
-                   // detached by the page's own scripts meanwhile: no styles to read
-                   && getComputedStyle(child).display) {
+        } else if (child.nodeType === Node.ELEMENT_NODE && walked(child)) {
           n.c.push(walk(child, s, childDisplay, inTransform || shaped));
         }
       }
+      if (/flex/.test(s.display)) sharedAutoMargins(n, s);
       return n;
+    };
+
+    // In a flex container auto margins on the main axis share the free space equally. Two items' margins of
+    // 12px and 4px can each pass for auto alone (the other one holds the rest), but not together: then
+    // neither is auto.
+    const sharedAutoMargins = (n, s) => {
+      const sides = s['flex-direction'].startsWith('column') ? ['t', 'b'] : ['l', 'r'];
+      const prop = { t: 'margin-top', b: 'margin-bottom', l: 'margin-left', r: 'margin-right' };
+      const flagged = [];
+      for (const c of n.c) {
+        if ('text' in c || !c.ma) continue;
+        for (const k of sides) if (c.ma.includes(k)) flagged.push([c, k, parseFloat(c.s[prop[k]])]);
+      }
+      if (flagged.length < 2 || flagged.every(([, , v]) => Math.abs(v - flagged[0][2]) < 0.5)) return;
+      for (const [c, k] of flagged) c.ma = c.ma.replace(k, '');
     };
 
     try {
@@ -506,6 +547,27 @@
       height: h + sum('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width') };
   };
 
+  // How many of a grid's columns are explicit. The computed grid-template-columns lists the implicit ones too
+  // (an item spanning 6 in a 1-column grid adds 5), but grid-column: 1 / -1 spans only the explicit ones: a
+  // hidden probe spanning them is measured against the tracks. Undefined when all are explicit.
+  const explicitColumns = (el, s) => {
+    const tracks = (s['grid-template-columns'] || '').split(/\s+/);
+    if (tracks.length < 2 || !tracks.every((t) => /^[\d.]+px$/.test(t))) return undefined;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'grid-column:1/-1;grid-row:1;height:0;min-width:0;padding:0;border:0;margin:0;'
+      + 'visibility:hidden;align-self:start;justify-self:stretch;box-sizing:border-box';
+    el.appendChild(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    const gap = parseFloat(s['column-gap']) || 0;
+    let sum = 0;
+    for (let k = 0; k < tracks.length - 1; k++) {
+      sum += parseFloat(tracks[k]) + (k ? gap : 0);
+      if (Math.abs(sum - width) < 0.5) return k + 1;
+    }
+    return undefined;
+  };
+
   // The box of a rotated or scaled element as laid out, before its transform (the bounding rect is the
   // transformed outline).
   const untransformed = (el) => {
@@ -530,18 +592,6 @@
       const px = g.getImageData(0, 0, probe.width, probe.height).data;
       for (let k = 3; k < px.length; k += 4) if (px[k]) return el.toDataURL('image/png');
     } catch { /* tainted */ }
-    return null;
-  };
-
-  const videoFrame = (el) => {
-    try {
-      if (el.readyState < 2 || !el.videoWidth) return null;
-      const c = document.createElement('canvas');
-      c.width = el.videoWidth;
-      c.height = el.videoHeight;
-      c.getContext('2d').drawImage(el, 0, 0);
-      return c.toDataURL('image/jpeg', 0.92);
-    } catch { /* cross-origin video */ }
     return null;
   };
 

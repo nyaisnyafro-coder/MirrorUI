@@ -26,9 +26,14 @@ def run(coro):
     return asyncio.run(coro)
 
 
+# Text drawn with greyscale antialiasing in both the original and the clone: whether Chrome uses subpixel
+# antialiasing depends on how it happens to composite layers (an animated neighbour flips it), not on the clone.
+BROWSER_ARGS = ['--disable-lcd-text']
+
+
 async def clone_url(url, selector, out_dir, replay=None, viewports=(375, 768, 1280), fonts=False):
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch()
+        browser = await pw.chromium.launch(args=BROWSER_ARGS)
         try:
             return await clone(browser, url, selector, out_dir, viewports, use_cache=False, replay=replay, fonts=fonts)
         finally:
