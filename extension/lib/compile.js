@@ -492,6 +492,9 @@
         if (hit) c = `leading-${hit[1]}`;
         else if (Math.abs(lh - step * 4) < 0.005 && lh >= 1) c = `leading-${num(step)}`;
         else if (fs && Math.abs(lh - fs * clean) < 0.002) c = `leading-[${num(clean)}]`;
+        // a fractional line height is almost always a ratio of the font size (1.1111 × 34px), and Chrome
+        // rounds a ratio's line height down to 1/64px but a px one to the nearest: kept a ratio, precisely
+        else if (fs && !Number.isInteger(lh)) c = `leading-[${(Math.round(ratio * 1e6) / 1e6).toString()}]`;
         else c = `leading-[${num(lh)}px]`;
       }
       out['line-height'] = [c, !keep.has('line-height') && !pinLeading];

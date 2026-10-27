@@ -391,15 +391,15 @@
           if (n.fw && n.fh && !sameWith(el, { width: 'auto', height: 'auto' }, before)) n.fw = n.fh = false;
           // form controls size themselves from options and the browser's control styles: keep their size
           if (['select', 'input', 'textarea'].includes(tag)) n.fw = n.fh = false;
-          // the parent is as wide as this child makes it (shrink-wrapped): then the width can't be a percentage
-          // of the parent, w-full there would be circular
-          if (!n.fw && el.parentElement) {
-            const parentWidth = () => el.parentElement.getBoundingClientRect().width;
-            const was = parentWidth(), old = el.style.getPropertyValue('width'), pri = el.style.getPropertyPriority('width');
-            el.style.setProperty('width', '1px', 'important');
-            n.pf = Math.abs(parentWidth() - was) > 0.5;
-            if (old) el.style.setProperty('width', old, pri); else el.style.removeProperty('width');
-          }
+        }
+        // the parent is as wide as this child makes it (shrink-wrapped): then the width can't be a percentage
+        // of the parent, w-full there would be circular (an icon box sized by its svg)
+        if (!n.fw && el.parentElement) {
+          const parentWidth = () => el.parentElement.getBoundingClientRect().width;
+          const was = parentWidth(), old = el.style.getPropertyValue('width'), pri = el.style.getPropertyPriority('width');
+          el.style.setProperty('width', '1px', 'important');
+          n.pf = Math.abs(parentWidth() - was) > 0.5;
+          if (old) el.style.setProperty('width', old, pri); else el.style.removeProperty('width');
         }
         // margin:auto shows up as px in computed style. It was auto if setting auto changes nothing while
         // both 0 and a larger margin do: an auto margin holds exactly the free space, whereas a margin
