@@ -23,7 +23,7 @@ Because it isn't installed from a store, the browser may warn about extensions i
 
 | Tool | What it does |
 |---|---|
-| **Pick** | Hover over a component and click (`↑` parent, `↓` child). The component is captured at 375 / 768 / 1280 px and the result opens in a large window: Astro / HTML / theme.css code on top, a preview below. The preview switches between **Clone**, **Original** and **Side by side**, shown at **Fit** or **100%**. Drag the line between the two parts to resize the code area. **Download ZIP** downloads a folder you can copy straight into an Astro project (component, theme, images, videos, fonts; see *Using it in your Astro site*). **Save to project** writes the result directly into your project; **Full view** opens it in a separate tab. The widths can be changed in the Pick panel. |
+| **Pick** | Hover over a component and click (`↑` parent, `↓` child). The component is captured at 375 / 768 / 1280 px and the result opens in a large window: Astro / HTML / theme.css code on top, a preview below. The preview switches between **Clone**, **Original** and **Side by side**, shown at **Fit** or **100%**. Drag the line between the two parts to resize the code area. **Download ZIP** downloads a folder you can copy straight into an Astro project (component, theme, images, videos, and fonts if embedded; see *Using it in your Astro site*). **Save to project** writes the result directly into your project; **Full view** opens it in a separate tab. The widths can be changed in the Pick panel. |
 | **Inspect** | Hover to see size, font, colour and padding/margin (padding in green). Click to open the box model and styles in the panel, with **Copy CSS**, **Tailwind** (turns the element into Tailwind classes and HTML) and **Parent** buttons. With an element selected, hold `Alt` and hover another element to measure the distance between them. |
 | **Colors** | Every colour used on the page, most used first. Filter by background, text, border and accent colours. Click a colour to highlight where it's used. Export as CSS variables, a Tailwind `@theme` or JSON. **Pick** adds any colour on screen with an eyedropper. |
 | **Fonts** | The font families the text actually uses: web font or system font, weights, sizes and a live sample. Buttons: **Copy stack**, **Copy @font-face** and **Highlight** (marks the text set in that font). |
@@ -62,7 +62,7 @@ python -m venv .venv
 ## Cloning from the command line
 
 ```powershell
-.venv\Scripts\python -m mirrorui "https://site.com/page" ".hero" -o out\hero
+.venv\Scripts\python -m mirrorui "https://example.com/page" ".hero" -o out\hero
 ```
 
 - **Finding a selector:** right-click the component in the browser → *Inspect*. Use the class of the component's root element (`.hero`, `.pricing`); if that doesn't work, right-click it in the Elements panel → *Copy → Copy selector*. If several elements match, the first one is used.
@@ -160,11 +160,11 @@ Without props it renders the captured content. To pass your own, see the `interf
 
 ## Fonts
 
-In the extension **Embed original fonts** is on by default, so the clone looks exactly like the page with its own fonts. Most fonts are commercially licensed; if you don't have the right to use them in your project, untick the box (the choice is remembered). With it off, `theme.css` names the font with fallbacks (`--font-helveticanow: helveticaNow, "Helvetica Neue", ...`); without the font the browser falls back to those. On the command line fonts are embedded only with `--fonts`.
+Font files are not copied by default. `theme.css` names the page's font with fallbacks (`--font-helveticanow: helveticaNow, "Helvetica Neue", ...`); if your computer or project doesn't have that font, the browser uses the fallbacks, so the clone can look slightly different from the original. Most web fonts are commercially licensed, and a licence to use a font on one site doesn't let you copy it to another.
 
-Icon fonts (such as fontello, Font Awesome, Material Icons: fonts whose characters sit in Unicode's private use area) are always embedded: without them the icons turn into empty boxes.
+Icon fonts (such as fontello, Font Awesome, Material Icons: fonts whose characters sit in Unicode's private use area) are always included: without them the icons turn into empty boxes. Check their licence too before you publish a clone that uses them.
 
-**If you have the right to use the font** (your own site, for example), use `--fonts` on the CLI or **Embed original fonts** in the extension:
+**Only if you have the right to use the font** (your own site, a font you've licensed for this use, or an open licence such as the SIL Open Font License), use `--fonts` on the CLI or tick **Embed original fonts** in the extension (the choice is remembered):
 - The `@font-face` rules of the families the component uses are added to `theme.css`.
 - The font files are embedded as data URLs, so the clone looks the same everywhere, independent of the original server and without CORS problems.
 - Example: on a form using a commercial font the difference dropped from 2–7% to 1–3%.
@@ -176,7 +176,7 @@ Icon fonts (such as fontello, Font Awesome, Material Icons: fonts whose characte
 ```
 
 ```bash
-curl -X POST localhost:8000/clone -H "content-type: application/json" -d "{\"url\": \"https://site.com\", \"selector\": \".hero\"}"
+curl -X POST localhost:8000/clone -H "content-type: application/json" -d "{\"url\": \"https://example.com\", \"selector\": \".hero\"}"
 ```
 
 Add `"fonts": true` to the request body to embed fonts. The response contains the HTML, the Astro source, the theme and the comparison results. Requests to the same domain run one after another, with at most 2 jobs running at once overall.
@@ -230,10 +230,19 @@ Packaging checks that every file the manifest mentions exists, the icon sizes, a
 - Bot-protected pages (Cloudflare challenges and the like) are deliberately not cloned; you get a clear error.
 - The cache invalidates itself when `extract.js` changes.
 
-Don't publish a design and content taken from someone else's site as is; use it as inspiration and a starting point.
+## Responsible use
+
+MirrorUI is meant for learning how a layout is built, prototyping, and recreating your own or your client's pages. You are responsible for how you use what it produces.
+
+- **Other people's work stays theirs.** Designs, text, images, videos, logos and fonts on a website are usually protected by copyright, trademark or licence terms. Capturing them doesn't give you any right to them. Don't publish a clone of someone else's site, or pass off its content or branding as your own; use it as inspiration and a starting point, and replace the content with your own.
+- **Follow the site's terms.** Some sites' terms of use forbid copying or automated access. Respect them, and don't use MirrorUI to get around paywalls, logins or other access controls. It works on pages you're signed in to because it reads your own open tab: content behind a login is often private or licensed to you only, so don't publish it.
+- **Downloads are for material you may use.** The Assets tool, Download ZIP and Save to project copy files from the page; only use the ones you have the right to.
+- **Personal data:** if a page shows other people's personal data, don't capture or share it.
+
+MirrorUI is provided as is, without warranty (see [LICENSE](LICENSE)); its authors aren't responsible for how it's used.
 
 ## License
 
 MIT, see [LICENSE](LICENSE). `extension/vendor/tailwindcss-browser.js` comes with Tailwind CSS's own MIT license (`extension/vendor/tailwindcss-LICENSE`).
 
-Designs, images and fonts taken from other people's sites belong to their owners; MirrorUI's license doesn't cover them.
+MIT covers MirrorUI's own code only. Designs, images and fonts taken from other people's sites belong to their owners; MirrorUI's license doesn't cover them.

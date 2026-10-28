@@ -268,7 +268,7 @@ async function init() {
     return b;
   }));
   const { options = {} } = await chrome.storage.local.get('options');
-  $('fonts').checked = options.embedFonts !== false; // on unless turned off
+  $('fonts').checked = options.embedFonts === true; // off unless turned on: most fonts are licensed
   await rebuild();
 }
 

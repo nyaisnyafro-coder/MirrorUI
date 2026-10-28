@@ -101,7 +101,7 @@
     const job = (await chrome.storage.local.get(key))[key];
     const widths = job.captures.map((c) => c.vw).sort((a, b) => a - b);
     const { options = {} } = await chrome.storage.local.get('options');
-    state = { job, tool: MUI.active, width: widths[widths.length - 1], tab: 'astro', fonts: options.embedFonts !== false, view: 'clone', fit: true,
+    state = { job, tool: MUI.active, width: widths[widths.length - 1], tab: 'astro', fonts: options.embedFonts === true, view: 'clone', fit: true,
       codeHeight: Math.round((innerHeight - 180) * 0.34), modal: null };
     await rebuild();
   }

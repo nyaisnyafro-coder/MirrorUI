@@ -2,7 +2,7 @@
 width, and lists the first mismatches in document order (the first one usually causes the rest).
 
     python scripts/boxdiff.py my-site 1280             # a recorded site from tests/sites.json, replayed
-    python scripts/boxdiff.py https://site.com .hero 768
+    python scripts/boxdiff.py https://example.com .hero 768
 
 Boxes are relative to the cloned root; mismatches under half a pixel (BOXDIFF_TOLERANCE) are ignored.
 """
