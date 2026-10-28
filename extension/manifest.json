@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MirrorUI",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "minimum_chrome_version": "116",
   "description": "Clone any component as responsive Tailwind v4 HTML and Astro, inspect elements, and pull a page's colours, fonts and assets.",
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },

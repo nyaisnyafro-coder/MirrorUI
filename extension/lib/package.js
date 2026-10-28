@@ -1,6 +1,7 @@
 // Packs a build into the files of an Astro project, plus a standalone preview, with the images, videos and
 // fonts the clone loads saved next to it instead of hotlinked from the original site:
-//   index.html                       standalone preview (open it straight from the folder)
+//   index.html                       standalone preview: self-contained (fonts embedded, images from the
+//                                    original site), so it opens even straight from inside the ZIP
 //   src/components/<Name>.astro      the component; for a page, its sections in src/components/<name>/
 //   src/styles/mirrorui/<slug>.css   @font-face rules and @theme tokens, imported after Tailwind
 //   public/clone-assets/<slug>/…     the assets; the code refers to them as /clone-assets/<slug>/…
@@ -75,7 +76,8 @@ globalThis.MirrorUIPackage = (() => {
 
   const readme = (main, slug, missing) => `# ${main}
 
-Cloned with MirrorUI. Open \`index.html\` to see it on its own.
+Cloned with MirrorUI. Open \`index.html\` to see it on its own (it needs an internet connection: Tailwind
+and the images load from the web).
 
 ## In an Astro project
 
@@ -131,7 +133,9 @@ ${missing.length ? `\n## Not downloaded\n\nThese still load from the original si
     // the project's own stylesheet imports Tailwind; this file only adds the clone's fonts and tokens
     const theme = built.themeFile.replace(/^@import "tailwindcss";\s*/, '');
     return [
-      { name: 'index.html', data: replaceAll(built.doc, map, `public/${dir}/`) },
+      // not pointed at public/: opened from inside the ZIP (Windows extracts just that one file) those
+      // relative paths lead nowhere; fonts and canvas pictures are already embedded in it
+      { name: 'index.html', data: built.doc },
       ...comps.map((c) => ({ name: `src/components/${c.path}`, data: replaceAll(c.code, map, `/${dir}/`) })),
       { name: `src/styles/mirrorui/${slug}.css`, data: replaceAll(theme, map, `/${dir}/`) },
       ...assets,

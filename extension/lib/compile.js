@@ -325,7 +325,13 @@
     for (const p of ['scale', 'rotate', 'translate']) {
       if (has(p) && s[p]) put(p, individualTransform(p, s[p], n));
     }
-    if (has('overflow-x') || has('overflow-y')) {
+    if (n.t === 'body') {
+      // A body's overflow applies to the window; on the <div> it becomes in the clone, auto or scroll would make
+      // a scroll box of its own (a second scrollbar). Hidden only clips, which overflow-clip does without that.
+      const clip = (v) => (v === 'hidden' || v === 'clip' ? 'clip' : 'visible');
+      const x = clip(s['overflow-x']), y = clip(s['overflow-y']);
+      out.overflow = [x === y ? `overflow-${x}` : `overflow-x-${x} overflow-y-${y}`, x === 'visible' && y === 'visible'];
+    } else if (has('overflow-x') || has('overflow-y')) {
       const x = s['overflow-x'], y = s['overflow-y'];
       out.overflow = [x === y ? `overflow-${x}` : `overflow-x-${x} overflow-y-${y}`,
         !keep.has('overflow-x') && !keep.has('overflow-y')];

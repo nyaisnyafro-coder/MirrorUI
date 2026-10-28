@@ -110,7 +110,8 @@ def test_zip_is_an_astro_project_with_its_assets(toolbar, server):
     assert files['public/clone-assets/127-0-0-1/bg-pattern.svg'].startswith(b'<svg')
     astro, html = files['src/components/Clone127001.astro'].decode(), files['index.html'].decode()
     assert "url('/clone-assets/127-0-0-1/bg-pattern.svg')" in astro and 'bg\\_pattern' not in astro
-    assert "url('public/clone-assets/127-0-0-1/bg-pattern.svg')" in html
+    # the preview stands on its own (opened straight from inside the ZIP it has no public/ next to it)
+    assert 'clone-assets' not in html and 'bg\\_pattern.svg' in html
 
     # canvases: their pictures become files too, one per breakpoint
     page = toolbar(f'{server}/tests/cases/interactive.html')

@@ -231,6 +231,17 @@
     if (a.href !== undefined && el.href && !a.href.startsWith('#')) a.href = el.href;
     if (el.currentSrc || (a.src !== undefined && el.src)) a.src = el.currentSrc || el.src;
     if (a.poster) a.poster = new URL(a.poster, location.href).href;
+    // a lazy loader's placeholder still in src (a data: image or a placeholder file): the real file is waiting
+    // in its data-* attribute
+    const lazy = el.getAttribute('data-src') || el.getAttribute('data-lazy-src') || el.getAttribute('data-original');
+    // (only over a placeholder: once loaded, the file shown can differ from data-src, a resized copy say)
+    const placeholder = !a.src || a.src.startsWith('data:') || (el.complete && el.naturalWidth <= 1)
+      || /placeholder|blank|spacer|transparent|lazy|loading/i.test(a.src.split('?')[0].split('/').pop());
+    if (lazy && placeholder && !lazy.startsWith('data:')) {
+      const real = new URL(lazy, location.href).href;
+      if (real !== a.src) a.src = real;
+    }
+    if (el.getAttribute('data-srcset') && (!a.srcset || a.srcset.startsWith('data:'))) a.srcset = el.getAttribute('data-srcset');
     // srcset with absolute URLs, so the clone picks the same file as the original at every width
     if (a.srcset) {
       a.srcset = a.srcset.split(/,\s+(?=\S)/).map((c) => {
@@ -342,7 +353,9 @@
       const k = PROPS.filter((p) => s[p] !== (INHERITED.has(p) ? hostStyles[p] : base[p]));
       // Pseudo boxes can't be probed with inline styles. Inline ones size themselves; any other box keeps its
       // measured size: empty boxes are drawn shapes, and a counter or icon often sits in a fixed-width column.
-      const free = s.display === 'inline';
+      // (positioned ones are often stretched between their insets: only drawn shapes keep a size there)
+      const shape = content === '""' || content.startsWith('url(');
+      const free = s.display === 'inline' || (['absolute', 'fixed'].includes(s.position) && !shape);
       return {
         t: which, s, k, content, pd: hostDisplay,
         w: parseFloat(s.width) || 0, h: parseFloat(s.height) || 0,
