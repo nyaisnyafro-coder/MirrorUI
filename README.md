@@ -10,14 +10,14 @@ Bir web sayfasındaki tek bir bileşeni (DOM + hesaplanmış CSS) yakalayıp res
 ## Tarayıcı eklentisi
 
 **Kurulum (bir kez):**
-- **Chrome / Edge:**
-  1. `chrome://extensions` (Edge'de `edge://extensions`) sayfasını aç.
-  2. Sağ üstten **Geliştirici modu**nu aç.
-  3. **Paketlenmemiş öğe yükle** → `MirrorUI\extension` klasörünü seç.
-- **Opera:**
-  1. `opera://extensions` sayfasını aç.
-  2. **Geliştirici modu**nu aç.
-  3. **Paketlenmemiş uzantı yükle** → aynı klasörü seç.
+1. [Releases](../../releases/latest) sayfasından `mirrorui-<sürüm>.zip` dosyasını indir ve bir klasöre **çıkar** (ZIP'in içinden yüklenemez). Kaynak koddan kuruyorsan bu adım yerine reponun `extension` klasörünü kullan.
+2. Tarayıcının eklentiler sayfasını aç: `chrome://extensions`, `edge://extensions` ya da `opera://extensions`.
+3. **Geliştirici modu**nu aç (Chrome'da sağ üstte).
+4. **Paketlenmemiş öğe yükle** (Opera'da *Paketlenmemiş uzantı yükle*) → çıkardığın klasörü seç (içinde `manifest.json` olan klasör).
+
+Mağaza dışından yüklendiği için tarayıcı, geliştirici modundaki eklentiler hakkında uyarı gösterebilir; bu normal. Klasörü silme ya da taşıma: eklenti oradan çalışır.
+
+**Güncelleme:** Yeni sürümün ZIP'ini aynı klasörün üzerine çıkar, sonra eklentiler sayfasında MirrorUI kartındaki yenile düğmesine bas ve açık sekmeleri yenile.
 
 **Kullanım:** Eklenti simgesine tıkla ya da `Alt+Shift+M` kısayolunu kullan. Sayfanın altında araç çubuğu açılır; her araç sonucunu sağdaki panelde gösterir. Aynı simge ya da kısayol çubuğu kapatır; `–` küçültür, `Esc` açık modu bitirir.
 
@@ -46,14 +46,14 @@ Dar ekranlarda (ya da Responsive bir telefon boyutu gösterirken) araç çubuğu
 
 Eklenti senin açık sekmeni okur: siteye yeni istek atmaz, giriş yaptığın sayfalarda da çalışır. `chrome://` sayfaları ve eklenti mağazası açılmaz; simgede kırmızı `×` görünür.
 
-**Kod güncellendikten sonra:** `opera://extensions` (veya `chrome://extensions`) sayfasında MirrorUI kartındaki yenile düğmesine bas, sonra açık sekmeleri yenile.
 
 ## Komut satırı kurulumu (bir kez)
 
 Komutları proje klasörünün içinden çalıştır (PowerShell):
 
 ```powershell
-cd C:\Users\Batuhan\Desktop\MirrorUI
+git clone https://github.com/nyaisnyafro-coder/MirrorUI.git
+cd MirrorUI
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python -m playwright install chromium
