@@ -4,8 +4,9 @@
     python tests/record_sites.py my-site
 
 Each page is loaded at every capture width and scrolled, so responsive images and lazy content are in the
-recording. Recordings stay on this machine (tests/sites/ is git-ignored): they contain third-party content,
-like news photos. Re-record when a site changes on purpose; thresholds live in sites.json.
+recording. The list (tests/sites.json, see tests/sites.example.json) and the recordings stay on this machine,
+both git-ignored: recordings hold other people's content, like news photos. Re-record when a site changes on
+purpose; thresholds live in sites.json.
 """
 import asyncio
 import json
@@ -20,7 +21,10 @@ sys.path.insert(0, str(HERE.parent))
 
 from mirrorui.capture import DEFAULT_VIEWPORTS, scroll_through  # noqa: E402
 
-SITES = json.loads((HERE / 'sites.json').read_text(encoding='utf-8'))
+SITES_FILE = HERE / 'sites.json'
+if not SITES_FILE.exists():
+    sys.exit('no tests/sites.json: copy tests/sites.example.json and list your sites in it')
+SITES = json.loads(SITES_FILE.read_text(encoding='utf-8'))
 
 
 async def record(name, site):

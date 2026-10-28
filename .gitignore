@@ -11,6 +11,8 @@ dist/
 tests/output/
 # recordings of real sites hold third-party content (news photos, fonts); re-record with tests/record_sites.py
 tests/sites/
+# the list of sites tested (tests/sites.example.json shows the format)
+tests/sites.json
 
 # editors / OS
 .vscode/

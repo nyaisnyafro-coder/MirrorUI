@@ -1,7 +1,7 @@
 """Where does a clone first go wrong? Compares every element's box in the clone with the original's, at one
 width, and lists the first mismatches in document order (the first one usually causes the rest).
 
-    python scripts/boxdiff.py astro-home 1280          # a recorded site from tests/sites.json, replayed
+    python scripts/boxdiff.py my-site 1280             # a recorded site from tests/sites.json, replayed
     python scripts/boxdiff.py https://site.com .hero 768
 
 Boxes are relative to the cloned root; mismatches under half a pixel (BOXDIFF_TOLERANCE) are ignored.
@@ -23,7 +23,8 @@ from mirrorui.verify import TAILWIND_LOCAL  # noqa: E402
 
 OUT = ROOT / 'tests' / 'output' / 'boxdiff'
 TOLERANCE = float(os.environ.get('BOXDIFF_TOLERANCE', 0.5))  # px
-SITES = json.loads((ROOT / 'tests' / 'sites.json').read_text(encoding='utf-8'))
+SITES_FILE = ROOT / 'tests' / 'sites.json'  # your own list, git-ignored (see tests/sites.example.json)
+SITES = json.loads(SITES_FILE.read_text(encoding='utf-8')) if SITES_FILE.exists() else {}
 
 BOXES_JS = """() => { const root = document.querySelector('#mirrorui-frame > *').getBoundingClientRect();
   return [...document.querySelectorAll('[data-mui-i]')].map((e) => { const r = e.getBoundingClientRect();

@@ -206,8 +206,7 @@ curl -X POST localhost:8000/clone -H "content-type: application/json" -d "{\"url
 
 - `tests/cases/`: şimdiye kadar bulunan her hata için küçük bir sayfa. Her biri her genişlikte piksel piksel (%0,5'ten az fark) klonlanmalı ve düzeltmenin ürettiği sınıfları içermeli.
 - `tests/test_extension.py`: eklentiyi Chromium'a yükleyip kullanıcı gibi kullanır: araç çubuğu, Pick, Clone page, ZIP, Save to project, Edit text.
-- `tests/test_sites.py`: gerçek sitelerin kayıtları (`tests/sites/*.har.zip`) internetsiz, saat dondurulmuş olarak tekrar oynatılır; her çalıştırmada aynı sonuç. Sınırlar `tests/sites.json` içinde. Kayıtlar başkalarının içeriği olduğu için git'e girmez; bir kez kaydet: `.venv\Scripts\python tests
-ecord_sites.py`.
+- `tests/test_sites.py`: gerçek sitelerin kayıtları internetsiz, saat dondurulmuş olarak tekrar oynatılır; her çalıştırmada aynı sonuç. Hangi sitelerin test edileceği ve sınırları `tests/sites.json` içinde. Bu liste ve kayıtlar (`tests/sites/*.har.zip`) başkalarının içeriğiyle ilgili olduğu için git'e girmez, yalnızca senin bilgisayarında durur. Biçimi `tests/sites.example.json` gösterir: kopyala, sitelerini yaz ve bir kez kaydet: `.venv\Scripts\python tests\record_sites.py`. Liste yoksa bu testler atlanır.
 
 ## Chrome Web Store'a yükleme
 

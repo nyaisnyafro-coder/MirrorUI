@@ -1,0 +1,12 @@
+{
+  "my-site": {
+    "url": "https://example.com/",
+    "selector": "body",
+    "max_diff": {
+      "375": 0.01,
+      "768": 0.01,
+      "1280": 0.01
+    },
+    "max_height_diff": 4
+  }
+}

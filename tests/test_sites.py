@@ -3,6 +3,9 @@ same result every run. The limits in sites.json are a little above today's resul
 clones of real pages worse fails here.
 
     pytest -m sites
+
+tests/sites.json is your own list and stays on your machine (git-ignored); tests/sites.example.json shows the
+format. Without it these tests are skipped.
 """
 import json
 from pathlib import Path
@@ -13,11 +16,12 @@ from conftest import OUTPUT, assert_matches, clone_url, run
 from mirrorui.capture import Replay
 
 HERE = Path(__file__).resolve().parent
-SITES = json.loads((HERE / 'sites.json').read_text(encoding='utf-8'))
+SITES = json.loads((HERE / 'sites.json').read_text(encoding='utf-8')) if (HERE / 'sites.json').exists() else {}
 
 
 @pytest.mark.sites
-@pytest.mark.parametrize('name', SITES)
+@pytest.mark.parametrize('name', SITES or [pytest.param(None, marks=pytest.mark.skip(
+    reason='no tests/sites.json: copy tests/sites.example.json and record the sites'))])
 def test_site(name):
     site = SITES[name]
     har = HERE / 'sites' / f'{name}.har.zip'
