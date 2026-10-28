@@ -160,7 +160,9 @@ Prop vermezsen yakalanan içerikle render olur. Kendi içeriğini vermek için b
 
 ## Fontlar
 
-Varsayılan olarak fontlar kopyalanmaz, çoğu ticari lisanslıdır. `theme.css` içinde font adı ve yedek fontlar yazılıdır (`--font-helveticanow: helveticaNow, "Helvetica Neue", ...`); fontu yoksa tarayıcı yedeklere düşer.
+Eklentide **Embed original fonts** varsayılan olarak açıktır: klon sayfanın kendi fontlarıyla birebir görünür. Fontların çoğu ticari lisanslıdır; kendi projende kullanma hakkın yoksa kutuyu kapat (tercih hatırlanır). Kapalıyken `theme.css` içinde font adı ve yedek fontlar yazılıdır (`--font-helveticanow: helveticaNow, "Helvetica Neue", ...`); fontu yoksa tarayıcı yedeklere düşer. Komut satırında fontlar yalnızca `--fonts` ile gömülür.
+
+İkon fontları (fontello, Font Awesome, Material Icons gibi; karakterleri Unicode'un özel kullanım alanında olan fontlar) her zaman gömülür: onlarsız ikonların yerinde boş kutular çıkar.
 
 **Fontu kullanma hakkın varsa** (örneğin kendi siten), CLI'da `--fonts` ya da eklentide **Embed original fonts** kullan:
 - Bileşenin kullandığı ailelerin `@font-face` kuralları `theme.css` dosyasına eklenir.
@@ -204,7 +206,8 @@ curl -X POST localhost:8000/clone -H "content-type: application/json" -d "{\"url
 
 - `tests/cases/`: şimdiye kadar bulunan her hata için küçük bir sayfa. Her biri her genişlikte piksel piksel (%0,5'ten az fark) klonlanmalı ve düzeltmenin ürettiği sınıfları içermeli.
 - `tests/test_extension.py`: eklentiyi Chromium'a yükleyip kullanıcı gibi kullanır: araç çubuğu, Pick, Clone page, ZIP, Save to project, Edit text.
-- `tests/test_sites.py`: gerçek sitelerin kayıtları (`tests/sites/*.har.zip`) internetsiz, saat dondurulmuş olarak tekrar oynatılır; her çalıştırmada aynı sonuç. Sınırlar `tests/sites.json` içinde. Kayıtlar başkalarının içeriği olduğu için git'e girmez; bir kez kaydet: `.venv\Scripts\python testsecord_sites.py`.
+- `tests/test_sites.py`: gerçek sitelerin kayıtları (`tests/sites/*.har.zip`) internetsiz, saat dondurulmuş olarak tekrar oynatılır; her çalıştırmada aynı sonuç. Sınırlar `tests/sites.json` içinde. Kayıtlar başkalarının içeriği olduğu için git'e girmez; bir kez kaydet: `.venv\Scripts\python tests
+ecord_sites.py`.
 
 ## Chrome Web Store'a yükleme
 
