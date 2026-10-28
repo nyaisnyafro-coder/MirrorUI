@@ -22,7 +22,8 @@ async def compile_captures(browser: Browser, captures, source_url='', **options)
     return await _call(browser, '([c, o]) => MirrorUICompile.build(c, o)', [captures, {'sourceUrl': source_url, **options}])
 
 
-async def font_urls(browser: Browser, captures):
-    """Font file URLs referenced by the @font-face rules of the families the component uses."""
-    faces = await _call(browser, 'c => MirrorUICompile.fontFaces(c)', captures)
+async def font_urls(browser: Browser, captures, all_fonts=True):
+    """Font file URLs referenced by the @font-face rules of the families the component uses (all_fonts=False:
+    its icon fonts only, which a clone always needs)."""
+    faces = await _call(browser, '([c, a]) => MirrorUICompile.neededFaces(c, a)', [captures, all_fonts])
     return list(dict.fromkeys(u for f in faces for u in f['urls']))

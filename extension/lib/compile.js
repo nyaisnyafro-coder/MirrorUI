@@ -987,6 +987,10 @@
         simple['min-height'] = nodes[i].sh ? [cls('min-h', space(`${nodes[i].sh}px`)), false] : ['min-h-0', true];
       });
     }
+    if (maps.some(([simple]) => simple['sr-only']) && !maps.every(([simple]) => simple['sr-only'])) {
+      // visually hidden at some widths only: sr-only sets a bundle of properties that must be undone
+      maps.forEach(([simple]) => { if (!simple['sr-only']) simple['sr-only'] = ['not-sr-only', true]; });
+    }
     if (nodes.some((n) => n._ord !== undefined)) {
       // its place in a carousel the script reordered (see reordered): the markup has the first width's order
       maps.forEach(([simple], i) => { simple.order = [`order-${nodes[i]._ord}`, i === 0]; });
@@ -1055,7 +1059,37 @@
     return out;
   };
 
-  const fontCss = (captures, files) => fontFaces(captures)
+  // Icon fonts: their glyphs sit in the private use area (or are ligatures, for the known families), so
+  // without the font there is nothing to fall back to, only empty boxes. They come along even when the
+  // page's text fonts aren't embedded.
+  const PRIVATE_USE = /[-]|[\u{F0000}-\u{FFFFD}]/u;
+  const ICON_NAMES = /icon|fontello|awesome|glyph|material symbols|material icons|icomoon|remix|feather|bootstrap-icons|lucide|tabler/i;
+  const iconFamilies = (captures) => {
+    const out = new Set();
+    const family = (st) => st['font-family'].split(',')[0].trim().replace(/^["']+|["']+$/g, '').toLowerCase();
+    const visit = (n, parent) => {
+      if (!n) return;
+      if ('text' in n) {
+        if (parent && PRIVATE_USE.test(n.text)) out.add(family(parent.s));
+        return;
+      }
+      if (ICON_NAMES.test(family(n.s))) out.add(family(n.s));
+      for (const p of [n.pb, n.pa]) {
+        if (p && (PRIVATE_USE.test(p.content || '') || ICON_NAMES.test(family(p.s)))) out.add(family(p.s));
+      }
+      (n.c || []).forEach((c) => visit(c, n));
+    };
+    captures.forEach((c) => visit(c.root, null));
+    return out;
+  };
+
+  // The @font-face rules a clone needs: all of the page's (all: true) or its icon fonts only.
+  const neededFaces = (captures, all) => {
+    const icons = all ? null : iconFamilies(captures);
+    return fontFaces(captures).filter((f) => all || icons.has(f.family));
+  };
+
+  const fontCss = (captures, files, all) => neededFaces(captures, all)
     .map((f) => f.css.replace(/url\("([^"]+)"\)/g, (m, u) => (files && files[u] ? `url("${files[u]}")` : m)))
     .join('\n');
 
@@ -1112,6 +1146,14 @@
       ('text' in g[0] ? g[0].text.trim() === '' : BLOCKY.includes(g[0].s.display)));
     if (pretty) kids = kids.filter((kid) => !('text' in kid) || kid.text.trim());
     const attrs = Object.fromEntries(base.a);
+    // a lazy loader's placeholder (a data: image) at one width, the real file at another: the real one
+    if (['img', 'source', 'video'].includes(base.t)) {
+      for (const key of ['src', 'srcset', 'poster']) {
+        if (attrs[key] && !String(attrs[key]).startsWith('data:')) continue;
+        const real = nodes.map((n) => Object.fromEntries(n.a || [])[key]).filter((v) => v && !v.startsWith('data:')).pop();
+        if (real) attrs[key] = real;
+      }
+    }
     // debugging (options.trace = a capture's viewport width): which captured element each one comes from
     if (traceWidth) {
       const v = viewports.findIndex((vp) => vp.vw === traceWidth);
@@ -1481,7 +1523,7 @@
     theme.addColor(backdrop);
     theme.finalize();
     const tree = render(roots, roots.map(() => null), viewports, theme, bps, ctx);
-    const faces = options.fonts ? fontCss(captures, options.fontFiles) : '';
+    const faces = fontCss(captures, options.fontFiles, !!options.fonts);
     const fragment = toHtml(tree);
     const themeCss = theme.css();
     // The page around the component isn't part of it, but its side gutters are needed for a fair comparison.
@@ -1521,5 +1563,5 @@ ${fragment}
     return { doc, fragment, theme: themeCss, themeFile, astroName: comps[0].name, astro: comps[0].code, components: comps };
   };
 
-  globalThis.MirrorUICompile = { build, fontFaces, FONT_TYPES, Theme };
+  globalThis.MirrorUICompile = { build, fontFaces, neededFaces, FONT_TYPES, Theme };
 })();

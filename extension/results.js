@@ -26,8 +26,9 @@ const toDataUrl = (blob, type) => new Promise((resolve, reject) => {
 });
 
 // The page's font files as data: URLs, so the clone renders with them anywhere (no CORS, no hotlinking).
-async function fontFiles(captures) {
-  const urls = [...new Set(MirrorUICompile.fontFaces(captures).flatMap((f) => f.urls))];
+// all of the page's fonts, or (all: false) its icon fonts only, which a clone always needs
+async function fontFiles(captures, all) {
+  const urls = [...new Set(MirrorUICompile.neededFaces(captures, all).flatMap((f) => f.urls))];
   const out = {};
   await Promise.all(urls.map(async (url) => {
     try {
@@ -41,7 +42,7 @@ async function fontFiles(captures) {
 
 async function rebuild() {
   const fonts = $('fonts').checked;
-  const options = { sourceUrl: job.url, fonts, fontFiles: fonts ? await fontFiles(job.captures) : {} };
+  const options = { sourceUrl: job.url, fonts, fontFiles: await fontFiles(job.captures, fonts) };
   built = MirrorUICompile.build(job.captures, options);
   previewDoc = MirrorUICompile.build(job.captures, { ...options, tailwindSrc: TAILWIND_LOCAL, preview: true }).doc;
   showCode();
@@ -80,7 +81,12 @@ $('widths').addEventListener('click', (e) => {
   width = +b.dataset.width;
   showCompare();
 });
-$('fonts').addEventListener('change', rebuild);
+$('fonts').addEventListener('change', async () => {
+  // remembered, like the setting in the result window
+  const { options = {} } = await chrome.storage.local.get('options');
+  await chrome.storage.local.set({ options: { ...options, embedFonts: $('fonts').checked } });
+  await rebuild();
+});
 $('part').addEventListener('change', () => { part = +$('part').value; showCode(); });
 $('copy').addEventListener('click', async () => {
   await navigator.clipboard.writeText(files()[tab][1]);
@@ -261,6 +267,8 @@ async function init() {
     b.textContent = `${w}px`;
     return b;
   }));
+  const { options = {} } = await chrome.storage.local.get('options');
+  $('fonts').checked = options.embedFonts !== false; // on unless turned off
   await rebuild();
 }
 

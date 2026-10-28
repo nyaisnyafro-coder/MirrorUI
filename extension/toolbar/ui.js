@@ -56,7 +56,10 @@
     const el = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs || {})) {
       if (v === null || v === undefined || v === false) continue;
-      if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      // only the user's clicks: some pages re-dispatch a synthetic copy of every click, which would toggle a
+      // tool straight back off
+      if (k === 'onclick') el.addEventListener('click', (e) => { if (e.isTrusted) v(e); });
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
       else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
       else if (k === 'text') el.textContent = v;
       else el.setAttribute(k, v === true ? '' : v);
@@ -473,7 +476,7 @@
     const click = (e) => {
       if (MUI.ours(e)) return;
       swallow(e);
-      if (current && !MUI.dragging) onPick(current);
+      if (current && !MUI.dragging && e.isTrusted) onPick(current); // (not a page's synthetic copy)
     };
     const key = (e) => {
       if (e.key === 'ArrowUp' && current?.parentElement && current.parentElement !== document.documentElement) show(current.parentElement, e);

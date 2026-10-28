@@ -101,7 +101,7 @@
     const job = (await chrome.storage.local.get(key))[key];
     const widths = job.captures.map((c) => c.vw).sort((a, b) => a - b);
     const { options = {} } = await chrome.storage.local.get('options');
-    state = { job, tool: MUI.active, width: widths[widths.length - 1], tab: 'astro', fonts: !!options.embedFonts, view: 'clone', fit: true,
+    state = { job, tool: MUI.active, width: widths[widths.length - 1], tab: 'astro', fonts: options.embedFonts !== false, view: 'clone', fit: true,
       codeHeight: Math.round((innerHeight - 180) * 0.34), modal: null };
     await rebuild();
   }
@@ -124,11 +124,9 @@
 
   async function rebuild() {
     const { job } = state;
-    let fontFiles = {};
-    if (state.fonts) {
-      const urls = [...new Set(MirrorUICompile.fontFaces(job.captures).flatMap((f) => f.urls))];
-      fontFiles = (await MUI.send({ type: 'fetch-fonts', urls })).files || {};
-    }
+    // the page's fonts when embedding them, its icon fonts always (see neededFaces)
+    const urls = [...new Set(MirrorUICompile.neededFaces(job.captures, state.fonts).flatMap((f) => f.urls))];
+    const fontFiles = urls.length ? (await MUI.send({ type: 'fetch-fonts', urls })).files || {} : {};
     const options = { sourceUrl: job.url, fonts: state.fonts, fontFiles };
     state.built = MirrorUICompile.build(job.captures, options);
     state.previewDoc = MirrorUICompile.build(job.captures, { ...options, tailwindSrc: TAILWIND_LOCAL, preview: true }).doc;

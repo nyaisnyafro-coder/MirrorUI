@@ -14,7 +14,8 @@ async def clone(browser, url, selector, out_dir, viewports=DEFAULT_VIEWPORTS, us
     out_dir.mkdir(parents=True, exist_ok=True)
     async with domain_lock(url):
         captures = await capture(browser, url, selector, viewports, out_dir, use_cache, replay)
-        font_files = await download_fonts(browser, await font_urls(browser, captures), url, replay) if fonts else {}
+        # all of the page's fonts with fonts=True, its icon fonts always
+        font_files = await download_fonts(browser, await font_urls(browser, captures, fonts), url, replay)
     built = await compile_captures(browser, captures, url, fonts=fonts, fontFiles=font_files)
     html_path = out_dir / 'index.html'
     html_path.write_text(built['doc'], encoding='utf-8')
