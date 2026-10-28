@@ -232,3 +232,9 @@ Paketleme öncesi manifest'in andığı her dosyanın varlığı, ikon boyutlar�
 - Önbellek, `extract.js` değişince kendiliğinden geçersiz olur.
 
 Başkasının sitesinden aldığın tasarımı ve içeriği olduğu gibi yayınlama; ilham ve başlangıç noktası olarak kullan.
+
+## Lisans
+
+MIT, bkz. [LICENSE](LICENSE). `extension/vendor/tailwindcss-browser.js` Tailwind CSS'in kendi MIT lisansıyla gelir (`extension/vendor/tailwindcss-LICENSE`).
+
+Başkasının sitesinden alınan tasarım, görsel ve fontların hakları sahiplerine aittir; MirrorUI'ın lisansı onları kapsamaz.

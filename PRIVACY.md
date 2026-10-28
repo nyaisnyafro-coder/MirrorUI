@@ -47,7 +47,7 @@ tracked.
 
 ## Contact
 
-Questions about this policy: SUPPORT_EMAIL (the contact address of the MirrorUI listing in the Chrome Web Store)
+Questions about this policy: hi@batuhany.com
 
 ---
 
