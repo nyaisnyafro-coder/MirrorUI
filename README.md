@@ -1,55 +1,55 @@
 # MirrorUI
 
-Bir web sayfasındaki tek bir bileşeni (DOM + hesaplanmış CSS) yakalayıp responsive **Tailwind v4 HTML** ve **Astro bileşenine** çevirir. LLM kullanmaz. İki şekilde çalışır:
+Captures a single component on a web page (its DOM and computed CSS) and turns it into responsive **Tailwind v4 HTML** and an **Astro component**. No LLM involved. It works in two ways:
 
-- **Tarayıcı eklentisi (Chrome / Opera / Edge):** Sayfada bileşene tıklarsın, sonuç yeni sekmede açılır. Sunucu gerekmez.
-- **Komut satırı (Python):** URL ve selector verirsin; sonucu orijinalle piksel piksel karşılaştırır.
+- **Browser extension (Chrome / Opera / Edge):** click a component on the page and the result opens in a new tab. No server needed.
+- **Command line (Python):** give it a URL and a selector; it compares the result with the original pixel by pixel.
 
-İkisi aynı kodu kullanır (`extension/lib/`), aynı sayfa için aynı çıktıyı üretir.
+Both run the same code (`extension/lib/`) and produce the same output for the same page.
 
-## Tarayıcı eklentisi
+## Browser extension
 
-**Kurulum (bir kez):**
-1. [Releases](../../releases/latest) sayfasından `mirrorui-<sürüm>.zip` dosyasını indir ve bir klasöre **çıkar** (ZIP'in içinden yüklenemez). Kaynak koddan kuruyorsan bu adım yerine reponun `extension` klasörünü kullan.
-2. Tarayıcının eklentiler sayfasını aç: `chrome://extensions`, `edge://extensions` ya da `opera://extensions`.
-3. **Geliştirici modu**nu aç (Chrome'da sağ üstte).
-4. **Paketlenmemiş öğe yükle** (Opera'da *Paketlenmemiş uzantı yükle*) → çıkardığın klasörü seç (içinde `manifest.json` olan klasör).
+**Install (once):**
+1. Download `mirrorui-<version>.zip` from the [Releases](../../releases/latest) page and **unzip** it into a folder (it can't be loaded from inside the ZIP). If you're installing from source, use the repo's `extension` folder instead.
+2. Open the browser's extensions page: `chrome://extensions`, `edge://extensions` or `opera://extensions`.
+3. Turn on **Developer mode** (top right in Chrome).
+4. Click **Load unpacked** and choose the unzipped folder (the one containing `manifest.json`).
 
-Mağaza dışından yüklendiği için tarayıcı, geliştirici modundaki eklentiler hakkında uyarı gösterebilir; bu normal. Klasörü silme ya da taşıma: eklenti oradan çalışır.
+Because it isn't installed from a store, the browser may warn about extensions in developer mode; that's expected. Don't delete or move the folder: the extension runs from there.
 
-**Güncelleme:** Yeni sürümün ZIP'ini aynı klasörün üzerine çıkar, sonra eklentiler sayfasında MirrorUI kartındaki yenile düğmesine bas ve açık sekmeleri yenile.
+**Update:** unzip the new version's ZIP over the same folder, click the reload button on the MirrorUI card on the extensions page, and reload open tabs.
 
-**Kullanım:** Eklenti simgesine tıkla ya da `Alt+Shift+M` kısayolunu kullan. Sayfanın altında araç çubuğu açılır; her araç sonucunu sağdaki panelde gösterir. Aynı simge ya da kısayol çubuğu kapatır; `–` küçültür, `Esc` açık modu bitirir.
+**Use:** click the extension icon or press `Alt+Shift+M`. A toolbar opens at the bottom of the page; each tool shows its result in the panel on the right. The same icon or shortcut closes the toolbar; `–` minimizes it, `Esc` ends the active mode.
 
-| Araç | Ne yapar |
+| Tool | What it does |
 |---|---|
-| **Pick** | Fareyle bir bileşenin üstüne gel, tıkla (`↑` üst eleman, `↓` alt eleman). Bileşen 375 / 768 / 1280 px'te yakalanır ve sonuç büyük bir pencerede açılır. Üstte Astro / HTML / theme.css kodu, altta önizleme var. Önizleme **Clone**, **Original** ve **Side by side** arasında geçiş yapar; **Fit** ya da **100%** boyutunda gösterilir. İki bölümün arasındaki çizgi sürüklenerek kodun alanı ayarlanır. **Download ZIP** doğrudan bir Astro projesine kopyalanabilecek klasörü indirir (bileşen, tema, görseller, videolar, fontlar; bkz. *Kendi Astro sitende kullanmak*). **Save to project** sonucu projene doğrudan yazar; **Full view** sonucu ayrı bir sekmede açar. Genişlikler Pick panelinde değiştirilebilir. |
-| **Inspect** | Üzerine gelince boyut, font, renk, padding/margin görünür (padding yeşil). Tıklayınca panelde box model ve stiller açılır. **Copy CSS**, **Tailwind** (elemanı Tailwind sınıflarına ve HTML'e çevirir) ve **Parent** düğmeleri var. Bir eleman seçiliyken `Alt` basılı tutup başka bir elemana gelince aradaki mesafe ölçülür. |
-| **Colors** | Sayfada kullanılan bütün renkler, en çok kullanılandan başlayarak. Arka plan, metin, kenarlık ve vurgu renklerine göre süzülür. Bir renge tıklayınca kullanıldığı yerler işaretlenir. CSS değişkenleri, Tailwind `@theme` ya da JSON olarak dışa aktarılır. **Pick** ekrandaki herhangi bir rengi damlalıkla ekler. |
-| **Fonts** | Metinlerin gerçekte kullandığı font aileleri; web fontu mu sistem fontu mu olduğu, kalınlıkları, boyutları ve canlı bir örnek. **Copy stack**, **Copy @font-face** ve **Highlight** (o fontla yazılmış metinleri işaretler) düğmeleri var. |
-| **Assets** | Görseller, satır içi SVG'ler (sprite'lar içine kopyalanmış olarak), CSS arka plan görselleri, videolar ve ikonlar. Türüne göre süzülür, URL ya da SVG kopyalanır, tek tek ya da seçerek indirilir. |
-| **Clone page** | Bütün sayfayı Pick gibi klonlar: tek bir Tailwind HTML belgesi ve bir Astro sayfa bileşeni. Sayfa bölümlerine ayrılır: `header`, `section`, `footer` gibi her bölüm kendi bileşeni olur (`Header.astro`, `Hero.astro`, `Footer.astro`…) ve sayfa bileşeni bunları import eder. Kod alanındaki dosya listesinden her birine bakılır. Canvas/WebGL çizimleri resim olarak gelir; videolar ve JavaScript animasyonları klonlanamaz. Önce sayfayı aşağı kaydır ki geç yüklenen içerik gelsin. |
-| **Design MD** | Sayfanın ölçülmüş tasarım sistemi: renk token'ları, font aileleri, tip ölçeği (rol, boyut, satır yüksekliği, ağırlık), spacing ölçeği ve taban birimi, radius, gölge, breakpoint, container genişlikleri, geçiş süreleri ve buton stilleri. **Visual** ve **Markdown** görünümü var. `DESIGN.md` olarak ya da coding agent'lar için `SKILL.md` olarak (Claude Code'da `.claude/skills/<ad>/SKILL.md`) indirilir. |
-| **Responsive** | Sekmeyi yerinde bir cihaz boyutunda gösterir: telefon, tablet, dizüstü, masaüstü ya da özel boyut. Telefon ve tabletlerde dokunmatik ekran ve 2× piksel yoğunluğu taklit edilir. **Capture all sizes** her boyutta bir ekran görüntüsü alır, istersen tüm sayfayı. **Own size** ya da aracı kapatmak sekmeyi kendi boyutuna döndürür. |
-| **Capture** | Ekran görüntüsü: görünen alan, tüm sayfa, tek bir eleman ya da sürükleyerek seçilen bölge. Panelde önizleme, **Download** ve **Copy** (resim olarak panoya). Araç çubuğu görüntüye girmez. |
-| **Swap font** | Google Fonts kataloğundaki yaklaşık 1950 aileden birini sayfada canlı dene. Kapsam olarak tüm metin, sadece başlıklar ya da sadece gövde metni seçilebilir. Fontlar ada göre aranır ve kategoriye göre süzülür; her kart kendi fontuyla önizlenir. Bilgisayarda yüklü bir fontu adıyla da kullanabilirsin. İkon fontları ve kod blokları (`monospace`) değişmez. **Undo** bir adım geri alır, **Revert** orijinal fontlara döner, kopyala düğmesi seçimi Google Fonts `<link>` + CSS + Tailwind `@theme` olarak verir. Pick ve Clone page değiştirilmiş fontu gerçek adıyla yakalar (ör. `font-lora`); klonu kullanacağın projeye o fontu Google Fonts'tan eklemen gerekir. |
-| **Arrange** | Bir elemana tıklayınca silinir; sürükleyince başka bir elemanın önüne ya da arkasına taşınır (yeşil çizgi bırakılacağı yeri gösterir). `↑`/`↓` üst ya da alt elemana geçer, `Delete` üzerine gelinen elemanı siler, `Ctrl/⌘+Z` her adımı geri alır. Panelde yapılan değişiklikler listelenir, **Reset all** hepsini geri alır. Pick ve Clone page sayfayı düzenlediğin haliyle yakalar. |
-| **Edit text** | Sayfadaki herhangi bir metne tıklayıp üzerine yaz. `Enter`/`Esc` bitirir, `Shift+Enter` yeni satır açar, `Ctrl/⌘+Z` son değişikliği geri alır. Panelde her değişiklik ayrı ayrı geri alınabilir, hepsi JSON olarak kopyalanır. Değişiklikler sayfa yenilenene kadar kalır; Pick ve Clone page düzenlenmiş metni yakalar, yani yeni metni klonlamadan önce deneyebilirsin. |
+| **Pick** | Hover over a component and click (`↑` parent, `↓` child). The component is captured at 375 / 768 / 1280 px and the result opens in a large window: Astro / HTML / theme.css code on top, a preview below. The preview switches between **Clone**, **Original** and **Side by side**, shown at **Fit** or **100%**. Drag the line between the two parts to resize the code area. **Download ZIP** downloads a folder you can copy straight into an Astro project (component, theme, images, videos, fonts; see *Using it in your Astro site*). **Save to project** writes the result directly into your project; **Full view** opens it in a separate tab. The widths can be changed in the Pick panel. |
+| **Inspect** | Hover to see size, font, colour and padding/margin (padding in green). Click to open the box model and styles in the panel, with **Copy CSS**, **Tailwind** (turns the element into Tailwind classes and HTML) and **Parent** buttons. With an element selected, hold `Alt` and hover another element to measure the distance between them. |
+| **Colors** | Every colour used on the page, most used first. Filter by background, text, border and accent colours. Click a colour to highlight where it's used. Export as CSS variables, a Tailwind `@theme` or JSON. **Pick** adds any colour on screen with an eyedropper. |
+| **Fonts** | The font families the text actually uses: web font or system font, weights, sizes and a live sample. Buttons: **Copy stack**, **Copy @font-face** and **Highlight** (marks the text set in that font). |
+| **Assets** | Images, inline SVGs (with sprites copied in), CSS background images, videos and icons. Filter by type, copy the URL or SVG, download one by one or a selection. |
+| **Clone page** | Clones the whole page like Pick: one Tailwind HTML document and an Astro page component. The page is split into sections: each `header`, `section`, `footer` and so on becomes its own component (`Header.astro`, `Hero.astro`, `Footer.astro`…), imported by the page component. Browse them in the file list of the code area. Canvas/WebGL drawings come across as images; videos and JavaScript animations can't be cloned. Scroll down the page first so lazy-loaded content is there. |
+| **Design MD** | The page's measured design system: colour tokens, font families, type scale (role, size, line height, weight), spacing scale and base unit, radius, shadows, breakpoints, container widths, transition durations and button styles. **Visual** and **Markdown** views. Download it as `DESIGN.md`, or as `SKILL.md` for coding agents (in Claude Code: `.claude/skills/<name>/SKILL.md`). |
+| **Responsive** | Shows the tab in place at a device size: phone, tablet, laptop, desktop or a custom size. Phones and tablets also emulate a touch screen and 2× pixel density. **Capture all sizes** takes a screenshot at every size, full page if you like. **Own size**, or closing the tool, returns the tab to its own size. |
+| **Capture** | Screenshots: the visible area, the full page, a single element or a region you drag out. The panel shows a preview with **Download** and **Copy** (as an image to the clipboard). The toolbar is left out of the shot. |
+| **Swap font** | Try any of about 1950 families from the Google Fonts catalogue live on the page, for all text, headings only or body text only. Search fonts by name and filter by category; each card previews in its own font. You can also use a font installed on your computer by name. Icon fonts and code blocks (`monospace`) don't change. **Undo** steps back, **Revert** returns to the original fonts, and the copy button gives the choice as a Google Fonts `<link>` + CSS + Tailwind `@theme`. Pick and Clone page capture the swapped font under its real name (e.g. `font-lora`); add that font from Google Fonts to the project where you use the clone. |
+| **Arrange** | Click an element to delete it; drag it to move it before or after another element (a green line shows where it will land). `↑`/`↓` moves to the parent or child, `Delete` removes the hovered element, `Ctrl/⌘+Z` undoes each step. The panel lists the changes; **Reset all** undoes them all. Pick and Clone page capture the page as you've arranged it. |
+| **Edit text** | Click any text on the page and type over it. `Enter`/`Esc` finishes, `Shift+Enter` adds a line break, `Ctrl/⌘+Z` undoes the last change. In the panel each change can be undone on its own, and all of them copied as JSON. Changes last until the page is reloaded; Pick and Clone page capture the edited text, so you can try new copy before cloning. |
 
-Pick ve Clone page yakalarken, Responsive bir boyut gösterirken ve Capture tüm sayfayı çekerken sayfanın üstünde "bir eklenti bu tarayıcıda hata ayıklıyor" uyarısı çıkar. Bu normal: genişlik taklidi DevTools protokolüyle yapılıyor. O uyarıdaki **İptal**, Responsive önizlemesini de bitirir. Son 8 klon saklanır.
+While Pick and Clone page capture, Responsive shows a size or Capture takes a full page, the browser shows a bar saying an extension is debugging this browser. That's expected: width emulation goes through the DevTools protocol. **Cancel** on that bar also ends the Responsive preview. The last 8 clones are kept.
 
-Paneller ve sonuç penceresi başlıklarından tutulup sürüklenebilir. Bırakıldıkları yer sayfalar arasında hatırlanır; başlığa çift tıklamak varsayılan yerine döndürür. Responsive bir cihaz boyutu gösterirken panel tek satırlık bir şeride iner, böylece sayfa görünür kalır. **Devices** cihaz listesini yeniden açar.
+Panels and the result window can be dragged by their title bars. Where you drop them is remembered across pages; double-click a title bar to return it to its default place. While Responsive shows a device size, the panel shrinks to a one-line strip so the page stays visible. **Devices** opens the device list again.
 
-Edit text, Swap font ve Arrange'ın değişiklikleri araç çubuğu kapatılınca da sayfada kalır; sayfa yenilenince orijinali geri gelir.
+Changes from Edit text, Swap font and Arrange stay on the page after the toolbar is closed; reloading the page brings back the original.
 
-Dar ekranlarda (ya da Responsive bir telefon boyutu gösterirken) araç çubuğu yalnızca simgelerle görünür; araçların adları üzerine gelince çıkar. Panel alttan açılan bir sayfaya dönüşür.
+On narrow screens (or while Responsive shows a phone size) the toolbar shows icons only; tool names appear on hover. The panel becomes a sheet that opens from the bottom.
 
-Eklenti senin açık sekmeni okur: siteye yeni istek atmaz, giriş yaptığın sayfalarda da çalışır. `chrome://` sayfaları ve eklenti mağazası açılmaz; simgede kırmızı `×` görünür.
+The extension reads the tab you have open: it doesn't send new requests to the site, so it works on pages you're signed in to. It can't open on `chrome://` pages or the extension store; the icon shows a red `×` there.
 
 
-## Komut satırı kurulumu (bir kez)
+## Command line setup (once)
 
-Komutları proje klasörünün içinden çalıştır (PowerShell):
+Run the commands from the folder you want the project in (PowerShell):
 
 ```powershell
 git clone https://github.com/nyaisnyafro-coder/MirrorUI.git
@@ -59,57 +59,57 @@ python -m venv .venv
 .venv\Scripts\python -m playwright install chromium
 ```
 
-## Komut satırıyla klonlamak
+## Cloning from the command line
 
 ```powershell
-.venv\Scripts\python -m mirrorui "https://site.com/sayfa" ".hero" -o out\hero
+.venv\Scripts\python -m mirrorui "https://site.com/page" ".hero" -o out\hero
 ```
 
-- **Selector bulmak:** Tarayıcıda bileşene sağ tık → *İncele*. Bileşenin kök elemanının sınıfını kullan (`.hero`, `.pricing`), olmazsa Elements panelinde sağ tık → *Copy → Copy selector*. Birden fazla eşleşme varsa ilki alınır.
-- **Seçenekler:**
-  - `--viewports 375,768,1280`: yakalanan genişlikler. En küçüğü taban sınıflar olur, sonrakiler sırasıyla `md:` ve `lg:` öneklerini alır.
-  - `--no-cache`: sayfayı yeniden çeker. Normalde aynı URL + selector önbellekten gelir.
-  - `--no-verify`: karşılaştırma adımını atlar.
-  - `--fonts`: sayfanın kendi font dosyalarını çıktıya gömer (bkz. Fontlar).
+- **Finding a selector:** right-click the component in the browser → *Inspect*. Use the class of the component's root element (`.hero`, `.pricing`); if that doesn't work, right-click it in the Elements panel → *Copy → Copy selector*. If several elements match, the first one is used.
+- **Options:**
+  - `--viewports 375,768,1280`: the widths to capture. The smallest becomes the base classes; the next ones get the `md:` and `lg:` prefixes in order.
+  - `--no-cache`: fetches the page again. Normally the same URL + selector comes from the cache.
+  - `--no-verify`: skips the comparison step.
+  - `--fonts`: embeds the page's own font files in the output (see Fonts).
 
-Komut, her viewport için orijinal ile klon arasında farklı olan piksellerin oranını yazar. %0–1 birebir demektir. %2–7 genelde font farkıdır; `--fonts` ile tekrar dene. Daha yüksek bir oranda `out/<ad>/original-*.png` ile `clone-*.png` dosyalarını yan yana açıp bak.
+For each viewport the command prints the share of pixels that differ between the original and the clone. 0–1% means identical. 2–7% is usually a font difference; try again with `--fonts`. For anything higher, open `out/<name>/original-*.png` and `clone-*.png` side by side.
 
-## Ne yakalanır
+## What gets captured
 
-- Layout, boşluklar, tipografi, renkler, kenarlıklar, gölgeler: 3 genişlikte, `md:` / `lg:` önekleriyle.
-- `::before` / `::after` → `before:` / `after:` sınıfları (içerik dahil).
-- `:hover` durumları → `hover:` ve alt elemanlar için `group-hover:`. İç içe gruplarda isimli gruplar (`group/card`) kullanılır.
-- `:focus`, `:focus-visible` ve `:active` durumları → `focus:`, `focus-visible:`, `active:` (elemanın kendisinde). Tarayıcının kendi odak halkası alınmaz.
-- Durum değiştiren elemanların geçişleri (`transition-colors duration-200`).
-- Transform'lar: `translate`, `rotate`, `scale` sınıflarına (`-translate-x-1/2`, `rotate-6`, `hover:scale-110`), eğiltme gibi diğerleri `[transform:…]` olarak.
-- Gölgeler (`shadow-[…]`, iç gölgeler ve birden fazla gölge dahil) ve `outline`.
-- Canvas ve WebGL çizimleri o anki görüntüleriyle `<img>` olur; genişliğe göre farklıysa `<picture>` ile her genişliğe kendi resmi.
-- Altı çizili linklerin çizgi rengi, kalınlığı ve mesafesi.
-- Sayfa içindeki SVG sprite'ları (`<use href="#icon">`) bileşenin içine kopyalanır.
+- Layout, spacing, typography, colours, borders, shadows: at 3 widths, with `md:` / `lg:` prefixes.
+- `::before` / `::after` → `before:` / `after:` classes (content included).
+- `:hover` states → `hover:`, and `group-hover:` for children. Nested groups use named groups (`group/card`).
+- `:focus`, `:focus-visible` and `:active` states → `focus:`, `focus-visible:`, `active:` (on the element itself). The browser's own focus ring is left out.
+- Transitions of elements that change state (`transition-colors duration-200`).
+- Transforms: as `translate`, `rotate` and `scale` classes (`-translate-x-1/2`, `rotate-6`, `hover:scale-110`); others such as skew as `[transform:…]`.
+- Shadows (`shadow-[…]`, including inset and multiple shadows) and `outline`.
+- Canvas and WebGL drawings become an `<img>` of what they show at that moment; if they differ by width, a `<picture>` gives each width its own image.
+- Colour, thickness and offset of link underlines.
+- SVG sprites on the page (`<use href="#icon">`) are copied into the component.
 
-## Çıktılar (`out/<ad>/`)
+## Output (`out/<name>/`)
 
-| Dosya | Ne işe yarar |
+| File | Purpose |
 |---|---|
-| `<Ad>.astro` | Astro bileşeni. 3+ tekrarlanan blok `.map` döngüsüdür, değişen alanlar prop'tur. Başlıklar, paragraflar, link ve buton yazıları, link adresleri ve görseller de prop'tur |
-| `<ad>/<Bölüm>.astro` | Bütün sayfa (`body`) klonlanınca: her bölüm ayrı bileşen (`Header`, `Hero`, `Footer`…) |
-| `theme.css` | Renk ve font token'ları (`@theme`) |
-| `index.html` | Bağımsız önizleme. Tarayıcıda direkt açılır, Tailwind CDN'den yüklenir |
-| `original-*.png`, `clone-*.png` | Karşılaştırma görüntüleri |
+| `<Name>.astro` | The Astro component. Blocks repeated 3+ times become a `.map` loop, with the parts that change as props. Headings, paragraphs, link and button text, link addresses and images are props too |
+| `<name>/<Section>.astro` | When the whole page (`body`) is cloned: each section as its own component (`Header`, `Hero`, `Footer`…) |
+| `theme.css` | Colour and font tokens (`@theme`) |
+| `index.html` | Standalone preview. Opens directly in the browser, loads Tailwind from a CDN |
+| `original-*.png`, `clone-*.png` | Comparison screenshots |
 
-## Kendi Astro sitende kullanmak
+## Using it in your Astro site
 
-**En kısa yol (eklenti):** Sonuç penceresinde **Save to project** → açılan sekmede projenin klasörünü seç. Şunları yazar:
-- `src/components/<Ad>.astro` (sayfa klonunda bölümler `src/components/<ad>/` içinde),
-- `src/styles/mirrorui/<ad>.css` (tema token'ları ve gömülü fontlar),
-- `public/clone-assets/<ad>/` (görseller, videolar, fontlar, canvas resimleri; kod bunları `/clone-assets/<ad>/…` yolundan kullanır),
-- ve `src/styles/global.css` içinde `@import "tailwindcss";` satırının altına `@import "./mirrorui/<ad>.css";` ekler.
+**Quickest (extension):** in the result window click **Save to project** → choose your project's folder in the tab that opens. It writes:
+- `src/components/<Name>.astro` (for a page clone, the sections go in `src/components/<name>/`),
+- `src/styles/mirrorui/<name>.css` (theme tokens and embedded fonts),
+- `public/clone-assets/<name>/` (images, videos, fonts, canvas pictures; the code uses them from `/clone-assets/<name>/…`),
+- and adds `@import "./mirrorui/<name>.css";` below the `@import "tailwindcss";` line in `src/styles/global.css`.
 
-Var olan bir dosyanın üzerine yazmadan ya da `global.css`'i değiştirmeden önce sorar. Seçtiğin klasör hatırlanır; **Change folder** başka projeye kaydeder. **Download ZIP** aynı dosyaları bir ZIP olarak verir (içinde nasıl kullanılacağını anlatan bir `README.md` ve tek başına açılan bir `index.html` de var).
+It asks before overwriting an existing file or changing `global.css`. The folder you chose is remembered; **Change folder** saves to another project. **Download ZIP** gives the same files as a ZIP (with a `README.md` explaining how to use them and an `index.html` that opens on its own).
 
-Elle kurmak istersen (ya da komut satırı çıktısı için):
+To set it up by hand (or for the command-line output):
 
-**1. Tailwind v4'ü kur** (projede yoksa):
+**1. Install Tailwind v4** (if the project doesn't have it):
 
 ```bash
 npm i tailwindcss @tailwindcss/vite
@@ -124,13 +124,13 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({ vite: { plugins: [tailwindcss()] } });
 ```
 
-**2. Token'ları global CSS'ine ekle.**
-- `src/styles/global.css` dosyasında `@import "tailwindcss";` satırı tek bir kez bulunsun.
-- Altına `theme.css` içindeki `@theme { ... }` bloğunu yapıştır. Fontları gömdüysen üstündeki `@font-face` kurallarını da al.
-- Birden fazla bileşen klonladıysan `@theme` bloklarını birleştir. Aynı isimli token'lar çakışırsa (iki farklı `accent` gibi) birini yeniden adlandır.
-- Bu CSS dosyasını layout'unda bir kez import et.
+**2. Add the tokens to your global CSS.**
+- `src/styles/global.css` should contain the `@import "tailwindcss";` line exactly once.
+- Paste the `@theme { ... }` block from `theme.css` below it. If you embedded fonts, take the `@font-face` rules above it too.
+- If you cloned several components, merge their `@theme` blocks. If tokens with the same name clash (two different `accent`s, say), rename one.
+- Import this CSS file once in your layout.
 
-**3. Bileşeni kopyala ve kullan:**
+**3. Copy the component and use it:**
 
 ```
 out/hero/Hero.astro  →  src/components/Hero.astro
@@ -143,33 +143,33 @@ import Hero from '../components/Hero.astro';
 <Hero />
 ```
 
-Prop vermezsen yakalanan içerikle render olur. Kendi içeriğini vermek için bileşenin tepesindeki `interface`'e bak:
+Without props it renders the captured content. To pass your own, see the `interface` at the top of the component:
 
 ```astro
 <Wrap cards={[
-  { title: 'Web siteleri', description: 'Hızlı ve erişilebilir siteler.' },
-  { title: 'Kurumsal kimlik', description: 'Tutarlı tipografi ve renk.' },
+  { title: 'Websites', description: 'Fast, accessible sites.' },
+  { title: 'Brand identity', description: 'Consistent type and colour.' },
 ]} />
 ```
 
-**4. Kendine göre düzenle.**
-- Linkler (`href`) orijinal siteyi gösterir, kendi adreslerinle değiştir.
-- Başlıklar, paragraflar, link/buton yazıları, link adresleri ve görseller prop'tur (`title`, `heading`, `text`, `label`, `href`, `image`…); varsayılanları yakalanan içeriktir. `<Hero title="Yeni başlık" href="/kayit" />` gibi değiştirebilirsin. İçinde başka eleman olan metinler (`<h1>` içinde `<em>` gibi) bileşende sabit yazılıdır.
-- Bileşen kendi dış boşluğunu (sayfa kenar boşluğu, arka plan rengi) taşımaz, bunu sayfandaki container verir.
-  - Orijinaldeki değerleri görmek için `index.html` içindeki `#mirrorui-frame` sınıflarına bak.
+**4. Make it yours.**
+- Links (`href`) point to the original site; replace them with your own addresses.
+- Headings, paragraphs, link/button text, link addresses and images are props (`title`, `heading`, `text`, `label`, `href`, `image`…), defaulting to the captured content. Change them like `<Hero title="New heading" href="/signup" />`. Text with other elements inside it (an `<em>` inside an `<h1>`, say) is written into the component as is.
+- The component doesn't carry its outer spacing (page margins, background colour); the container on your page provides that.
+  - To see the original's values, look at the classes on `#mirrorui-frame` in `index.html`.
 
-## Fontlar
+## Fonts
 
-Eklentide **Embed original fonts** varsayılan olarak açıktır: klon sayfanın kendi fontlarıyla birebir görünür. Fontların çoğu ticari lisanslıdır; kendi projende kullanma hakkın yoksa kutuyu kapat (tercih hatırlanır). Kapalıyken `theme.css` içinde font adı ve yedek fontlar yazılıdır (`--font-helveticanow: helveticaNow, "Helvetica Neue", ...`); fontu yoksa tarayıcı yedeklere düşer. Komut satırında fontlar yalnızca `--fonts` ile gömülür.
+In the extension **Embed original fonts** is on by default, so the clone looks exactly like the page with its own fonts. Most fonts are commercially licensed; if you don't have the right to use them in your project, untick the box (the choice is remembered). With it off, `theme.css` names the font with fallbacks (`--font-helveticanow: helveticaNow, "Helvetica Neue", ...`); without the font the browser falls back to those. On the command line fonts are embedded only with `--fonts`.
 
-İkon fontları (fontello, Font Awesome, Material Icons gibi; karakterleri Unicode'un özel kullanım alanında olan fontlar) her zaman gömülür: onlarsız ikonların yerinde boş kutular çıkar.
+Icon fonts (such as fontello, Font Awesome, Material Icons: fonts whose characters sit in Unicode's private use area) are always embedded: without them the icons turn into empty boxes.
 
-**Fontu kullanma hakkın varsa** (örneğin kendi siten), CLI'da `--fonts` ya da eklentide **Embed original fonts** kullan:
-- Bileşenin kullandığı ailelerin `@font-face` kuralları `theme.css` dosyasına eklenir.
-- Font dosyaları data URL olarak gömülür. Böylece klon her yerde aynı fontla görünür; orijinal sunucuya bağlı kalmaz, CORS sorunu çıkmaz.
-- Örnek: ticari font kullanan bir formda fark %2–7'den %1–3'e indi.
+**If you have the right to use the font** (your own site, for example), use `--fonts` on the CLI or **Embed original fonts** in the extension:
+- The `@font-face` rules of the families the component uses are added to `theme.css`.
+- The font files are embedded as data URLs, so the clone looks the same everywhere, independent of the original server and without CORS problems.
+- Example: on a form using a commercial font the difference dropped from 2–7% to 1–3%.
 
-## HTTP API (isteğe bağlı)
+## HTTP API (optional)
 
 ```bash
 .venv/Scripts/python -m uvicorn server:app --port 8000
@@ -179,61 +179,61 @@ Eklentide **Embed original fonts** varsayılan olarak açıktır: klon sayfanın
 curl -X POST localhost:8000/clone -H "content-type: application/json" -d "{\"url\": \"https://site.com\", \"selector\": \".hero\"}"
 ```
 
-İstek gövdesine `"fonts": true` eklersen fontlar gömülür. Yanıt; HTML, Astro kaynağı, tema ve karşılaştırma oranlarını içerir. Aynı alan adına istekler sırayla, toplamda en fazla 2 iş aynı anda çalışır.
+Add `"fonts": true` to the request body to embed fonts. The response contains the HTML, the Astro source, the theme and the comparison results. Requests to the same domain run one after another, with at most 2 jobs running at once overall.
 
-## Proje yapısı
+## Project layout
 
-| Yol | İçerik |
+| Path | Contents |
 |---|---|
-| `extension/lib/extract.js` | Sayfada çalışır: DOM'u ve stilleri okur, hover farklarını çıkarır |
-| `extension/lib/compile.js` | Yakalamayı Tailwind HTML + Astro'ya çevirir |
-| `extension/lib/stage.js` | Orijinal ve klonu yan yana gösteren karşılaştırma görünümü (panel ve tam sayfa) |
-| `extension/lib/package.js`, `zip.js` | Sonucu Astro proje dosyalarına (görseller `public/` altında) ve ZIP'e çevirir |
-| `extension/toolbar/` | Sayfa içi araç çubuğu: kabuk (`ui.js`), her araç ayrı dosyada |
-| `extension/` | Service worker (yakalama, indirme), tam sayfa sonuç görünümü, önizleme sandbox'ı |
-| `mirrorui/` | CLI ve API: Playwright ile yakalar, aynı `extension/lib` dosyalarını çalıştırır, karşılaştırır |
-| `tests/` | Testler (bkz. Testler) |
-| `scripts/` | Mağaza paketi ve mağaza görselleri |
-| `PRIVACY.md`, `STORE.md`, `store/` | Gizlilik politikası, mağaza başvuru metinleri, mağaza görselleri |
+| `extension/lib/extract.js` | Runs in the page: reads the DOM and styles, works out hover differences |
+| `extension/lib/compile.js` | Turns a capture into Tailwind HTML + Astro |
+| `extension/lib/stage.js` | Comparison view showing the original and the clone side by side (panel and full page) |
+| `extension/lib/package.js`, `zip.js` | Turns the result into Astro project files (images under `public/`) and a ZIP |
+| `extension/toolbar/` | The in-page toolbar: the shell (`ui.js`) and one file per tool |
+| `extension/` | Service worker (capture, downloads), full-page result view, preview sandbox |
+| `mirrorui/` | CLI and API: captures with Playwright, runs the same `extension/lib` files, compares |
+| `tests/` | Tests (see Tests) |
+| `scripts/` | Extension packaging and store images |
+| `PRIVACY.md`, `STORE.md`, `store/` | Privacy policy, store listing texts, store images |
 
-## Testler
+## Tests
 
 ```powershell
 .venv\Scripts\python -m pip install -r requirements-dev.txt
-.venv\Scripts\python -m pytest                 # regresyon sayfaları + eklenti (~2 dk, internetsiz)
-.venv\Scripts\python -m pytest -m sites        # kaydedilmiş gerçek siteler
+.venv\Scripts\python -m pytest                 # regression pages + extension (~2 min, offline)
+.venv\Scripts\python -m pytest -m sites        # recorded real sites
 ```
 
-- `tests/cases/`: şimdiye kadar bulunan her hata için küçük bir sayfa. Her biri her genişlikte piksel piksel (%0,5'ten az fark) klonlanmalı ve düzeltmenin ürettiği sınıfları içermeli.
-- `tests/test_extension.py`: eklentiyi Chromium'a yükleyip kullanıcı gibi kullanır: araç çubuğu, Pick, Clone page, ZIP, Save to project, Edit text.
-- `tests/test_sites.py`: gerçek sitelerin kayıtları internetsiz, saat dondurulmuş olarak tekrar oynatılır; her çalıştırmada aynı sonuç. Hangi sitelerin test edileceği ve sınırları `tests/sites.json` içinde. Bu liste ve kayıtlar (`tests/sites/*.har.zip`) başkalarının içeriğiyle ilgili olduğu için git'e girmez, yalnızca senin bilgisayarında durur. Biçimi `tests/sites.example.json` gösterir: kopyala, sitelerini yaz ve bir kez kaydet: `.venv\Scripts\python tests\record_sites.py`. Liste yoksa bu testler atlanır.
+- `tests/cases/`: a small page for every bug found so far. Each must clone pixel for pixel (under 0.5% difference) at every width and contain the classes the fix produces.
+- `tests/test_extension.py`: loads the extension into Chromium and uses it like a person would: toolbar, Pick, Clone page, ZIP, Save to project, Edit text.
+- `tests/test_sites.py`: recordings of real sites replayed offline with the clock frozen, so every run gives the same result. Which sites to test and their limits live in `tests/sites.json`. That list and the recordings (`tests/sites/*.har.zip`) concern other people's content, so they stay out of git, on your machine only. `tests/sites.example.json` shows the format: copy it, list your sites and record them once with `.venv\Scripts\python tests\record_sites.py`. Without the list these tests are skipped.
 
-## Chrome Web Store'a yükleme
+## Packaging the extension
 
 ```powershell
-.venv\Scripts\python scripts\package_extension.py   # dist\mirrorui-<sürüm>.zip
-.venv\Scripts\python scripts\store_images.py        # store\ altında ekran görüntüleri ve tanıtım görselleri
+.venv\Scripts\python scripts\package_extension.py   # dist\mirrorui-<version>.zip
+.venv\Scripts\python scripts\store_images.py        # screenshots and promo images under store\
 ```
 
-Paketleme öncesi manifest'in andığı her dosyanın varlığı, ikon boyutları ve uzaktan kod yüklenmediği kontrol edilir. Mağaza formundaki bütün metinler (açıklama, tek amaç, izin gerekçeleri, veri kullanımı, inceleyici notu) `STORE.md` içinde. `PRIVACY.md`'yi herkese açık bir adreste yayınlayıp (`SUPPORT_EMAIL` yerine iletişim adresini yazarak) adresini forma ekle. Her yeni sürümde `extension/manifest.json` içindeki `version` artırılmalı.
+Packaging checks that every file the manifest mentions exists, the icon sizes, and that no remote code is loaded. Releases are built by GitHub Actions when a `v*` tag matching `version` in `extension/manifest.json` is pushed; bump that version for every release. For a Chrome Web Store submission, every text the form asks for (description, single purpose, permission justifications, data usage, reviewer notes) is in `STORE.md`; publish `PRIVACY.md` at a public address and add that address to the form.
 
-## Bilinen sınırlar
+## Known limits
 
-- Hover, focus ve active yalnızca en geniş viewport'ta okunur; focus/active yalnızca elemanın kendisindeki değişiklikler için.
-- JavaScript animasyonları, yakalandıkları andaki halleriyle donmuş olarak gelir (ör. kayan bir slider o anki slaytında).
-- Hover adayları başka alan adından yüklenen CSS'te tanımlıysa tahminle bulunur (link, buton, `cursor: pointer`).
-- Yüksekliğini satırdaki komşusundan alan bir eleman tek başına alınırsa, o yükseklik `min-h` olarak korunur.
-- Bazı genişliklerde `display: contents` olan bir eleman seçilirse, o genişlikte üst elemanının düzenine bağlıdır ve tek başına aynı görünmez. Bunun yerine bir üst elemanı seç.
-- 3'ten az tekrarlanan bloklar döngüye çevrilmez.
-- Canvas ve WebGL çizimleri durağan resim olur; kapalı shadow DOM içeriği klonlanamaz.
-- Renk ve font token adları (`accent`, `ink`, `tone-95`…) her klonda aynı adlarla üretilir; aynı projeye kaydedilen ikinci bir klonun teması, öncekinin aynı isimli token'larını ezer.
-- Bot korumalı sayfalar (Cloudflare challenge vb.) bilerek klonlanmaz, açık bir hata verilir.
-- Önbellek, `extract.js` değişince kendiliğinden geçersiz olur.
+- Hover, focus and active are read only at the widest viewport; focus/active only for changes on the element itself.
+- JavaScript animations come across frozen as they were when captured (a sliding carousel on its current slide, for example).
+- If hover candidates are defined in CSS loaded from another domain, they're found by guessing (links, buttons, `cursor: pointer`).
+- An element that takes its height from a neighbour in its row keeps that height as `min-h` when captured on its own.
+- If you pick an element that is `display: contents` at some widths, at those widths it depends on its parent's layout and won't look the same on its own. Pick its parent instead.
+- Blocks repeated fewer than 3 times aren't turned into loops.
+- Canvas and WebGL drawings become still images; closed shadow DOM content can't be cloned.
+- Colour and font token names (`accent`, `ink`, `tone-95`…) are the same in every clone, so a second clone saved to the same project overrides the earlier one's tokens of the same name.
+- Bot-protected pages (Cloudflare challenges and the like) are deliberately not cloned; you get a clear error.
+- The cache invalidates itself when `extract.js` changes.
 
-Başkasının sitesinden aldığın tasarımı ve içeriği olduğu gibi yayınlama; ilham ve başlangıç noktası olarak kullan.
+Don't publish a design and content taken from someone else's site as is; use it as inspiration and a starting point.
 
-## Lisans
+## License
 
-MIT, bkz. [LICENSE](LICENSE). `extension/vendor/tailwindcss-browser.js` Tailwind CSS'in kendi MIT lisansıyla gelir (`extension/vendor/tailwindcss-LICENSE`).
+MIT, see [LICENSE](LICENSE). `extension/vendor/tailwindcss-browser.js` comes with Tailwind CSS's own MIT license (`extension/vendor/tailwindcss-LICENSE`).
 
-Başkasının sitesinden alınan tasarım, görsel ve fontların hakları sahiplerine aittir; MirrorUI'ın lisansı onları kapsamaz.
+Designs, images and fonts taken from other people's sites belong to their owners; MirrorUI's license doesn't cover them.
