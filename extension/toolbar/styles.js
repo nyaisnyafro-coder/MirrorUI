@@ -9,40 +9,46 @@ button { font: inherit; color: inherit; }
 svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
   stroke-linejoin: round; flex: none; }
 
-/* toolbar */
-.bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: stretch; gap: 2px;
-  padding: 6px; background: rgba(16, 13, 24, .96); border: 1px solid #2e2840; border-radius: 16px; pointer-events: auto;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .35), 0 0 0 1px rgba(124, 92, 255, .18); max-width: calc(100vw - 24px); }
-.brand { display: grid; place-items: center; width: 34px; margin: 0 4px 0 2px; }
+/* toolbar: an icon rail on the left edge; each tool's name shows beside it on hover (.rail-tip) */
+.bar { position: fixed; left: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column;
+  align-items: center; gap: 2px; padding: 6px; background: rgba(16, 13, 24, .96); border: 1px solid #2e2840;
+  border-radius: 14px; pointer-events: auto; box-shadow: 0 12px 40px rgba(0, 0, 0, .35), 0 0 0 1px rgba(124, 92, 255, .18);
+  max-height: calc(100vh - 24px); overflow-y: auto; scrollbar-width: none; }
+.bar::-webkit-scrollbar { display: none; }
+.brand { display: grid; place-items: center; height: 34px; margin: 2px 0 4px; flex: none; }
 .brand svg { width: 22px; height: 22px; }
-.tool { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 64px;
-  padding: 8px 8px 6px; border: 0; border-radius: 11px; background: transparent; color: #cfc9de; cursor: pointer;
-  font-size: 11px; font-weight: 600; line-height: 1; white-space: nowrap; }
-.tool:hover { background: #221d2e; color: #fff; }
+.tool { position: relative; display: grid; place-items: center; width: 38px; height: 38px; flex: none; padding: 0; border: 0;
+  border-radius: 10px; background: transparent; color: #cfc9de; cursor: pointer; }
+.tool:hover, .tool:focus-visible { background: #221d2e; color: #fff; outline: none; }
 .tool[aria-pressed="true"] { background: #7c5cff; color: #fff; }
-.tool.square { min-width: 38px; padding: 8px; }
-.sep { width: 1px; background: #2e2840; margin: 6px 4px; }
-.mini { position: fixed; right: 16px; bottom: 16px; width: 44px; height: 44px; border-radius: 14px; border: 1px solid #2e2840;
+.tool .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.sep { height: 1px; width: 24px; background: #2e2840; margin: 4px 0; flex: none; }
+.rail-tip { position: fixed; pointer-events: none; background: #120f1a; color: #ece9f4; border: 1px solid #2e2840; border-radius: 7px;
+  padding: 5px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; transform: translateY(-50%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.rail-tip span { margin-left: 8px; color: #9a93ad; font-weight: 400; }
+.mini { position: fixed; left: 12px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 14px; border: 1px solid #2e2840;
   background: rgba(16, 13, 24, .96); display: grid; place-items: center; cursor: pointer; pointer-events: auto;
   box-shadow: 0 8px 28px rgba(0, 0, 0, .35); }
 .mini svg { width: 24px; height: 24px; }
 
 /* side panel */
-.panel { position: fixed; top: 16px; right: 16px; bottom: 92px; width: 460px; max-width: calc(100vw - 32px);
+.panel { position: fixed; top: 16px; right: 16px; bottom: 16px; width: 460px; max-width: calc(100vw - 32px);
   display: flex; flex-direction: column; background: #0e0c14; border: 1px solid #2e2840; border-radius: 14px;
   pointer-events: auto; overflow: hidden; box-shadow: 0 16px 48px rgba(0, 0, 0, .4); }
 .panel > header { display: flex; align-items: flex-start; gap: 10px; padding: 14px 14px 12px; border-bottom: 1px solid #221d2e;
   cursor: move; user-select: none; }
 /* dragged somewhere: anchored by its top-left corner instead of the right edge */
-.panel.moved { right: auto; bottom: auto; height: min(calc(100vh - 108px), 820px); }
+.panel.moved { right: auto; bottom: auto; height: min(calc(100vh - 32px), 820px); }
 .panel.compact { bottom: auto; height: auto !important; }
 .panel.compact .body { display: none; }
 
 /* result window (Pick, Clone page) */
-.modal { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); width: min(1500px, calc(100vw - 32px));
-  height: calc(100vh - 108px); display: flex; flex-direction: column; background: #0e0c14; border: 1px solid #2e2840;
+/* centred in the room right of the rail */
+.modal { position: fixed; top: 16px; left: 76px; right: 16px; margin: 0 auto; max-width: 1500px;
+  height: calc(100vh - 32px); display: flex; flex-direction: column; background: #0e0c14; border: 1px solid #2e2840;
   border-radius: 14px; pointer-events: auto; overflow: hidden; box-shadow: 0 24px 64px rgba(0, 0, 0, .5); }
-.modal.moved { transform: none; }
+.modal.moved { right: auto; margin: 0; width: min(1500px, calc(100vw - 92px)); }
 .modal > header { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #221d2e;
   cursor: move; user-select: none; }
 .modal > header .titles { min-width: 0; flex: 0 1 auto; }
@@ -62,7 +68,8 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .modal .bar-row2 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .modal .label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #9a93ad; }
 @media (max-width: 820px) {
-  .modal { top: 8px; width: calc(100vw - 16px); height: calc(100vh - 80px); }
+  .modal { top: 8px; left: 62px; right: 8px; height: calc(100vh - 16px); }
+  .modal.moved { width: calc(100vw - 70px); }
   .modal .preview-grid.two { grid-template-columns: minmax(0, 1fr); }
 }
 .panel > header .titles { flex: 1; min-width: 0; }
@@ -114,7 +121,7 @@ kbd { background: #221d2e; border: 1px solid #2e2840; border-radius: 4px; paddin
 .box.guide { border: 0; background: #ff5c8a; border-radius: 0; }
 .guide-label { position: fixed; pointer-events: none; background: #ff5c8a; color: #fff; font: 600 11px/1 system-ui;
   padding: 3px 5px; border-radius: 4px; transform: translate(-50%, -50%); }
-.hint { position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%); background: #120f1a; border: 1px solid #2e2840;
+.hint { position: fixed; left: calc(50% + 32px); bottom: 16px; transform: translateX(-50%); background: #120f1a; border: 1px solid #2e2840;
   color: #ece9f4; padding: 7px 12px; border-radius: 9px; font-size: 12px; white-space: nowrap; pointer-events: none;
   box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
 .toast { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); background: #7c5cff; color: #fff; padding: 8px 14px;
@@ -213,17 +220,20 @@ pre.tall { max-height: none; }
 .box.edited { border: 1px dashed #2bd4a4; background: rgba(43, 212, 164, .06); }
 .box.editing { border: 2px solid #2bd4a4; background: transparent; }
 
-/* below the labelled toolbar's ~900px: icons only (the title attribute still names each tool) */
-@media (max-width: 1040px) {
-  .tool { min-width: 44px; font-size: 0; gap: 0; padding: 8px; }
-}
-/* narrow viewports (phones, or the Responsive tool emulating one) */
-@media (max-width: 820px) {
-  .bar { left: 8px; right: 8px; transform: none; overflow-x: auto; bottom: 8px; }
+/* short windows: a tighter rail (it scrolls if it still doesn't fit) */
+@media (max-height: 700px) {
   .brand { display: none; }
-  .panel { top: auto; left: 8px; right: 8px; bottom: 72px; width: auto; max-width: none; height: 62vh; }
-  .panel.compact { top: auto; bottom: 72px; }
-  .hint { bottom: 72px; max-width: calc(100vw - 16px); white-space: normal; text-align: center; }
+  .tool { width: 34px; height: 32px; }
+}
+/* narrow viewports (phones, or the Responsive tool emulating one): a slimmer rail, the panel as a sheet beside it */
+@media (max-width: 820px) {
+  .bar { left: 6px; padding: 4px; }
+  .brand { display: none; }
+  .tool { width: 36px; height: 36px; }
+  .mini { left: 6px; }
+  .panel { top: auto; left: 62px; right: 8px; bottom: 8px; width: auto; max-width: none; height: 62vh; }
+  .panel.compact { top: auto; bottom: 8px; }
+  .hint { left: 62px; right: 8px; bottom: 8px; transform: none; max-width: none; white-space: normal; text-align: center; }
 }
 
 /* assets */

@@ -19,7 +19,7 @@ Because it isn't installed from a store, the browser may warn about extensions i
 
 **Update:** unzip the new version's ZIP over the same folder, click the reload button on the MirrorUI card on the extensions page, and reload open tabs.
 
-**Use:** click the extension icon or press `Alt+Shift+M`. A toolbar opens at the bottom of the page; each tool shows its result in the panel on the right. The same icon or shortcut closes the toolbar; `–` minimizes it, `Esc` ends the active mode.
+**Use:** click the extension icon or press `Alt+Shift+M`. A toolbar opens along the left edge of the page, one icon per tool (hover an icon to see its name); each tool shows its result in the panel on the right. The same icon or shortcut closes the toolbar; `–` minimizes it, `Esc` ends the active mode.
 
 | Tool | What it does |
 |---|---|
@@ -42,7 +42,7 @@ Panels and the result window can be dragged by their title bars. Where you drop 
 
 Changes from Edit text, Swap font and Arrange stay on the page after the toolbar is closed; reloading the page brings back the original.
 
-On narrow screens (or while Responsive shows a phone size) the toolbar shows icons only; tool names appear on hover. The panel becomes a sheet that opens from the bottom.
+On narrow screens (or while Responsive shows a phone size) the toolbar gets slimmer and the panel becomes a sheet at the bottom, next to it.
 
 The extension reads the tab you have open: it doesn't send new requests to the site, so it works on pages you're signed in to. It can't open on `chrome://` pages or the extension store; the icon shows a red `×` there.
 

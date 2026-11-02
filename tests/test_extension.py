@@ -55,7 +55,7 @@ def tool(page, label):
 
 def test_toolbar_has_every_tool(toolbar, server):
     page = toolbar(f'{server}/fixtures/demo.html')
-    labels = page.locator('mirrorui-root .bar button.tool').all_inner_texts()
+    labels = page.locator('mirrorui-root .bar button.tool[aria-pressed]').all_inner_texts()
     assert [l.strip() for l in labels if l.strip()] == TOOLS
 
 

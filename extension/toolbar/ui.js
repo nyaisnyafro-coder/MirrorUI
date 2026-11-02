@@ -93,7 +93,7 @@
 
   // ---------------------------------------------------------------- mount
 
-  let host, shadow, root, bar, mini, panelEl, modalEl, hintEl, toastEl, tipEl, toastTimer;
+  let host, shadow, root, bar, mini, panelEl, modalEl, hintEl, toastEl, tipEl, railTip, toastTimer;
   const boxes = new Map();   // key -> element
   const tracked = new Map(); // key -> {el, cls}: boxes that follow an element on scroll/resize
 
@@ -110,21 +110,35 @@
     panelEl = h('div', { hidden: true });
     modalEl = h('div', { hidden: true });
 
+    railTip = h('div', { class: 'rail-tip', hidden: true });
+    // icon only; the name (kept in the button for screen readers) shows beside it on hover or keyboard focus
+    const railButton = (label, icon, onclick, attrs = {}, about = '') => {
+      const b = h('button', { class: 'tool', 'aria-label': label, onclick, ...attrs }, MUI.icon(icon), h('span', { class: 'lbl', text: label }));
+      const show = () => {
+        const r = b.getBoundingClientRect();
+        railTip.replaceChildren(h('b', { text: label }), about && about !== label ? h('span', { text: about }) : null);
+        railTip.hidden = false;
+        Object.assign(railTip.style, { left: `${r.right + 10}px`, top: `${r.top + r.height / 2}px` });
+      };
+      b.addEventListener('mouseenter', show);
+      b.addEventListener('focus', show);
+      for (const t of ['mouseleave', 'blur', 'click']) b.addEventListener(t, () => { railTip.hidden = true; });
+      return b;
+    };
     const toolButtons = MUI.order.map((name) => {
       const t = MUI.tools[name];
-      t.button = h('button', { class: 'tool', 'aria-pressed': 'false', title: t.title || t.label, onclick: () => MUI.activate(name) },
-        MUI.icon(t.icon), t.label);
+      t.button = railButton(t.label, t.icon, () => MUI.activate(name), { 'aria-pressed': 'false' }, t.title);
       return t.button;
     });
     bar = h('div', { class: 'bar' },
       h('div', { class: 'brand', title: 'MirrorUI' }, MUI.icon('logo')),
       toolButtons,
       h('div', { class: 'sep' }),
-      h('button', { class: 'tool square', title: 'Minimize', onclick: () => MUI.minimize(true) }, MUI.icon('minimize')),
-      h('button', { class: 'tool square', title: 'Close MirrorUI (Alt+Shift+M)', onclick: () => MUI.unmount() }, MUI.icon('close')));
+      railButton('Minimize', 'minimize', () => MUI.minimize(true)),
+      railButton('Close MirrorUI (Alt+Shift+M)', 'close', () => MUI.unmount()));
     mini = h('button', { class: 'mini', hidden: true, title: 'Show MirrorUI', onclick: () => MUI.minimize(false) }, MUI.icon('logo'));
 
-    root.append(panelEl, modalEl, tipEl, hintEl, toastEl, bar, mini);
+    root.append(panelEl, modalEl, tipEl, hintEl, toastEl, bar, mini, railTip);
     shadow.append(root);
     document.documentElement.append(host);
     window.addEventListener('scroll', reposition, true);
@@ -376,9 +390,10 @@
     tipEl.hidden = false;
     const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
     let top = rect.bottom + 8;
-    if (top + th > innerHeight - 90) top = Math.max(8, rect.top - th - 8);
-    if (top + th > innerHeight - 90) top = Math.max(8, innerHeight - 90 - th);
-    const left = Math.min(Math.max(8, rect.left), innerWidth - tw - 8);
+    if (top + th > innerHeight - 8) top = Math.max(8, rect.top - th - 8);
+    if (top + th > innerHeight - 8) top = Math.max(8, innerHeight - 8 - th);
+    // clear of the rail on the left
+    const left = Math.min(Math.max(bar.getBoundingClientRect().right + 8, rect.left), innerWidth - tw - 8);
     Object.assign(tipEl.style, { left: `${left}px`, top: `${top}px` });
   };
   MUI.hideTip = () => { if (tipEl) tipEl.hidden = true; };
