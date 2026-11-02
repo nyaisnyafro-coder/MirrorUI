@@ -125,8 +125,21 @@ class Replay:
         return None
 
 
+# Resolves once the DOM has gone `quiet` ms without a change, or after `cap` ms (carousels never go quiet).
+SETTLE_JS = """([quiet, cap]) => new Promise((resolve) => {
+  let timer;
+  const done = () => { observer.disconnect(); clearTimeout(timer); clearTimeout(limit); resolve(); };
+  const observer = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(done, quiet); });
+  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+  timer = setTimeout(done, quiet);
+  const limit = setTimeout(done, cap);
+})"""
+
+
 async def scroll_through(page, replay=None):
-    """Scroll the page once so lazy images and scroll-reveal content settle in their final state."""
+    """Scroll the page once so lazy images and scroll-reveal content settle in their final state, then back
+    to the top, where what the page shows only while scrolled (a floating "contact us" button, a shrunken
+    header) has to finish going away before anything is read."""
     height = await page.evaluate('document.body.scrollHeight')
     step = await page.evaluate('innerHeight')
     for y in range(0, height, max(step, 200)):
@@ -136,6 +149,10 @@ async def scroll_through(page, replay=None):
         else:
             await page.wait_for_timeout(80)
     await page.evaluate('scrollTo(0, 0)')
+    if replay:
+        await page.clock.run_for(1000)
+    else:
+        await page.evaluate(SETTLE_JS, [500, 2500])
 
 
 async def capture_viewport(browser: Browser, url, selector, width, shot_path=None, widest=False, replay=None):
